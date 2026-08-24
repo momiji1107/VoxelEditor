@@ -3,10 +3,22 @@ using UnityEngine;
 
 public class VoxelWorld : MonoBehaviour
 {
+    [Header("Grid Settings")]
+    [SerializeField]
+    private int _minimumHeight = 0;
+
     [SerializeField]
     private List<VoxelBlockData> _blocks = new();
 
+    public int MinimumHeight => _minimumHeight;
+
     public IReadOnlyList<VoxelBlockData> Blocks => _blocks;
+    
+    public bool IsBelowMinimumHeight(
+        Vector3Int gridPosition)
+    {
+        return gridPosition.y < _minimumHeight;
+    }
 
     public void AddBlock(
         Vector3Int gridPosition,
