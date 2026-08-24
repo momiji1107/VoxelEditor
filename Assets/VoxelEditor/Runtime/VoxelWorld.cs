@@ -14,8 +14,7 @@ public class VoxelWorld : MonoBehaviour
 
     public IReadOnlyList<VoxelBlockData> Blocks => _blocks;
 
-    public bool IsBelowMinimumHeight(
-        Vector3Int gridPosition)
+    public bool IsBelowMinimumHeight(Vector3Int gridPosition)
     {
         return gridPosition.y < _minimumHeight;
     }
@@ -35,8 +34,7 @@ public class VoxelWorld : MonoBehaviour
         _blocks.Add(blockData);
     }
 
-    public void RemoveBlock(
-        Vector3Int gridPosition)
+    public void RemoveBlock(Vector3Int gridPosition)
     {
         for (int i = _blocks.Count - 1; i >= 0; i--)
         {
@@ -67,8 +65,7 @@ public class VoxelWorld : MonoBehaviour
         return false;
     }
     
-    public bool HasBlock(
-        Vector3Int gridPosition)
+    public bool HasBlock(Vector3Int gridPosition)
     {
         return TryGetBlock(
             gridPosition,

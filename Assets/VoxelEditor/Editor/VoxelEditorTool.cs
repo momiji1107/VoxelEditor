@@ -23,7 +23,7 @@ public class VoxelEditorTool : EditorTool
 
     [SerializeField] private bool _penDragEnabled = true;
     [SerializeField] private bool _eraserDragEnabled = true;
-    
+
     private Vector3Int _dragPreviewPosition;
     private bool _hasDragPreview;
 
@@ -50,11 +50,11 @@ public class VoxelEditorTool : EditorTool
     private GameObject _eraseTarget;
     private Vector3Int _lastErasedPosition;
     private bool _hasLastErasedPosition;
-    
+
     private const float GuiWidth = 200f;
-    private const float GuiHeight = 700f;
+    private const float GuiHeight = 600f;
     private const float GuiMargin = 10f;
-    
+
     // -------------------------
     // Prefab回転
     // -------------------------
@@ -62,7 +62,6 @@ public class VoxelEditorTool : EditorTool
     [SerializeField] private bool _showRotationSettings;
     private Vector3 _prefabRotation = Vector3.zero;
 
-    private const float RotationButtonWidth = 42f;
     private const float RotationButtonHeight = 24f;
 
     // -------------------------
@@ -71,39 +70,36 @@ public class VoxelEditorTool : EditorTool
 
     [SerializeField] private bool _gridVisible = true;
     private const float GridSizeButtonWidth = 25f;
-    private const float GridLineWidth = 1f;
-    private const int GridSizeMin = 40;
-    private const int GridSizeMax = 10000;
-    private const int GridSizeStep = 40;
+    private const float GridLineWidth = 10f;
+    private const int GridSizeMin = 10;
+    private const int GridSizeMax = 100;
+    private const int GridSizeStep = 10;
 
     private int _gridSize = 40;
     private static readonly Color GridColor = new(0.5f, 0.5f, 0.5f, 0.35f);
-    
+
     // -------------------------
     // Prefab一覧
     // -------------------------
     private VoxelPrefabDatabase _prefabDatabase;
     private GameObject _selectedPrefab;
     private readonly Dictionary<GameObject, Texture2D> _prefabPreviews = new();
-    
-    private const float PrefabAreaHeight = 220f;
+
     private const float PrefabItemHeight = 80f;
     private const float PrefabItemSpacing = 5f;
     private const float PrefabPreviewPadding = 5f;
     private const float PrefabLabelHeight = 15f;
+    private const float PrefabSelectionBorderWidth = 3f;
     private const int PrefabColumns = 2;
-    
+
     /// <summary>
     /// ツールバーの表示
     /// </summary>
     public override GUIContent toolbarIcon
     {
-        get
-        {
-            return new GUIContent("V");
-        }
+        get { return new GUIContent("V"); }
     }
-    
+
     private void OnEnable()
     {
         LoadPrefabDatabase();
@@ -135,7 +131,7 @@ public class VoxelEditorTool : EditorTool
         // ドラッグ中の処理
         // -------------------------
 
-        if (currentEvent.type == EventType.MouseDrag && 
+        if (currentEvent.type == EventType.MouseDrag &&
             currentEvent.button == 0 &&
             _isDragging &&
             !currentEvent.alt)
@@ -324,9 +320,9 @@ public class VoxelEditorTool : EditorTool
 
         GameObject rootObject = PrefabUtility.GetOutermostPrefabInstanceRoot(hitObject);
 
-        _eraseTarget = rootObject != null 
-                ? rootObject
-                : hitObject;
+        _eraseTarget = rootObject != null
+            ? rootObject
+            : hitObject;
     }
 
     // =========================================================
@@ -417,11 +413,11 @@ public class VoxelEditorTool : EditorTool
 
         SceneView.RepaintAll();
     }
-    
+
     // =========================================================
     // 消しゴム
     // =========================================================
-    
+
     private void StartEraserDrag()
     {
         if (_eraseTarget == null)
@@ -447,7 +443,7 @@ public class VoxelEditorTool : EditorTool
 
         SceneView.RepaintAll();
     }
-    
+
     private void EraseDraggedBlocks(Event currentEvent)
     {
         if (!_hasLastErasedPosition)
@@ -655,11 +651,11 @@ public class VoxelEditorTool : EditorTool
 
         Undo.DestroyObjectImmediate(_eraseTarget);
     }
-    
+
     // =========================================================
     // 回転
     // =========================================================
-    
+
     /// <summary>
     /// 選択中のPrefabを指定した軸方向に90度回転する
     /// </summary>
@@ -683,7 +679,7 @@ public class VoxelEditorTool : EditorTool
         if (angle < 0f) angle += 360f;
         return angle;
     }
-    
+
     /// <summary>
     /// 回転ツールのセッティング
     /// </summary>
@@ -730,36 +726,47 @@ public class VoxelEditorTool : EditorTool
     {
         return _selectedPrefab;
     }
-    
+
     // =========================================================
     // グリッド
     // =========================================================
-    
+
     private void DrawGrid()
     {
-        if (!_gridVisible) return;
+        if (!_gridVisible || _voxelWorld == null) return;
 
         float cellSize = VoxelGridUtility.CellSize;
-        if (cellSize <= 0f) return;
+        if (cellSize <= 0f || _gridSize <= 0) return;
 
-        int gridY = _voxelWorld != null ? _voxelWorld.MinimumHeight : 0;
+        int gridY = _voxelWorld.MinimumHeight;
+
         Vector3 center = VoxelGridUtility.GridToWorld(new Vector3Int(0, gridY, 0));
-        center -= new Vector3(cellSize * 0.5f, 0f, cellSize * 0.5f);
+        center += new Vector3(cellSize * 0.5f, 0f, cellSize * 0.5f);
 
-        float halfSize = _gridSize * cellSize * 0.5f;
+        float totalSize = _gridSize * cellSize;
+        float halfSize = totalSize * 0.5f;
+
+        Vector3 start = center - new Vector3(halfSize, 0f, halfSize);
+
         Handles.color = GridColor;
 
         for (int i = 0; i <= _gridSize; i++)
         {
-            float offset = -halfSize + i * cellSize;
+            float offset = i * cellSize;
 
-            Handles.DrawLine(center + new Vector3(-halfSize, 0f, offset), center + new Vector3(halfSize, 0f, offset), GridLineWidth);
-            Handles.DrawLine(center + new Vector3(offset, 0f, -halfSize), center + new Vector3(offset, 0f, halfSize), GridLineWidth);
+            Vector3 xStart = start + new Vector3(offset, 0f, 0f);
+            Vector3 xEnd = xStart + new Vector3(0f, 0f, totalSize);
+
+            Vector3 zStart = start + new Vector3(0f, 0f, offset);
+            Vector3 zEnd = zStart + new Vector3(totalSize, 0f, 0f);
+
+            Handles.DrawAAPolyLine(GridLineWidth, xStart, xEnd);
+            Handles.DrawAAPolyLine(GridLineWidth, zStart, zEnd);
         }
 
         Handles.color = Color.white;
     }
-    
+
     /// <summary>
     /// グリッドツールのセッティング
     /// </summary>
@@ -807,9 +814,11 @@ public class VoxelEditorTool : EditorTool
         if (!_hasHit) return;
 
         Vector3Int previewPosition = _gridPosition;
-        if (_isDragging && _hasDragStart && _hasDragPreview && _dragDirection != Vector3Int.zero) previewPosition = _dragPreviewPosition;
+        if (_isDragging && _hasDragStart && _hasDragPreview && _dragDirection != Vector3Int.zero)
+            previewPosition = _dragPreviewPosition;
 
-        bool canPlace = _voxelWorld != null && !_voxelWorld.IsBelowMinimumHeight(previewPosition) && !_voxelWorld.HasBlock(previewPosition);
+        bool canPlace = _voxelWorld != null && !_voxelWorld.IsBelowMinimumHeight(previewPosition) &&
+                        !_voxelWorld.HasBlock(previewPosition);
 
         Handles.color = canPlace ? Color.green : Color.red;
 
@@ -821,7 +830,8 @@ public class VoxelEditorTool : EditorTool
             Handles.DrawWireCube(Vector3.zero, Vector3.one * VoxelGridUtility.CellSize);
         }
 
-        if (_isDragging && _hasDragStart && _hasDragPreview && _dragDirection != Vector3Int.zero) DrawDragPreviewLine(_dragStartPosition, previewPosition);
+        if (_isDragging && _hasDragStart && _hasDragPreview && _dragDirection != Vector3Int.zero)
+            DrawDragPreviewLine(_dragStartPosition, previewPosition);
 
         Handles.color = Color.white;
     }
@@ -874,8 +884,8 @@ public class VoxelEditorTool : EditorTool
                         !_voxelWorld.HasBlock(end);
 
         Handles.color = canPlace
-                ? new Color(0.3f, 1f, 0.3f, 0.35f)
-                : new Color(1f, 0.2f, 0.2f, 0.35f);
+            ? new Color(0.3f, 1f, 0.3f, 0.35f)
+            : new Color(1f, 0.2f, 0.2f, 0.35f);
 
         Handles.DrawWireCube(endWorld, Vector3.one * VoxelGridUtility.CellSize);
 
@@ -890,7 +900,19 @@ public class VoxelEditorTool : EditorTool
     {
         Handles.BeginGUI();
 
-        GUILayout.BeginArea(new Rect(GuiMargin, GuiMargin, GuiWidth, GuiHeight), "Voxel Editor", GUI.skin.window);
+        SceneView sceneView = SceneView.currentDrawingSceneView;
+
+        if (sceneView == null)
+        {
+            Handles.EndGUI();
+            return;
+        }
+
+        float guiHeight = sceneView.position.height - GuiMargin * 5f;
+
+        Rect guiRect = new Rect(GuiMargin, GuiMargin, GuiWidth, guiHeight);
+
+        GUILayout.BeginArea(guiRect, "Voxel Editor", GUI.skin.window);
 
         GUILayout.Label("Tool");
 
@@ -905,20 +927,15 @@ public class VoxelEditorTool : EditorTool
 
         if (_toolMode == ToolMode.Pen)
         {
-            string penDragText = _penDragEnabled ? "Drag : ON" : "Drag : OFF";
-
-            if (GUILayout.Button(penDragText))
+            if (GUILayout.Button(_penDragEnabled ? "ペンドラッグ : ON" : "ペンドラッグ : OFF"))
             {
                 _penDragEnabled = !_penDragEnabled;
                 CancelDrag();
             }
         }
-
-        if (_toolMode == ToolMode.Eraser)
+        else
         {
-            string eraserDragText = _eraserDragEnabled ? "Drag : ON" : "Drag : OFF";
-
-            if (GUILayout.Button(eraserDragText))
+            if (GUILayout.Button(_eraserDragEnabled ? "消しゴムドラッグ : ON" : "消しゴムドラッグ : OFF"))
             {
                 _eraserDragEnabled = !_eraserDragEnabled;
                 CancelDrag();
@@ -946,7 +963,17 @@ public class VoxelEditorTool : EditorTool
             DrawRotationSettings();
 
             GUILayout.Space(5);
-            DrawPrefabSelector();
+
+            GUILayout.Label("Prefab", EditorStyles.boldLabel);
+            GUILayout.Label(_selectedPrefab != null ? $"選択中 : {_selectedPrefab.name}" : "選択中 : None");
+
+            Rect lastRect = GUILayoutUtility.GetLastRect();
+
+            float prefabTop = lastRect.yMax + 5f;
+            float prefabBottom = guiHeight - 8f;
+            float prefabHeight = Mathf.Max(0f, prefabBottom - prefabTop);
+
+            DrawPrefabSelector(prefabHeight, prefabTop);
         }
         else
         {
@@ -954,7 +981,6 @@ public class VoxelEditorTool : EditorTool
         }
 
         GUILayout.EndArea();
-
         Handles.EndGUI();
     }
 
@@ -991,36 +1017,6 @@ public class VoxelEditorTool : EditorTool
         gridPosition.y = Mathf.RoundToInt(minimumHeight);
 
         return true;
-    }
-
-    // =========================================================
-    // ライン
-    // =========================================================
-
-    private IEnumerable<Vector3Int> GetLinePositions(Vector3Int start, Vector3Int end)
-    {
-        int deltaX = end.x - start.x;
-        int deltaY = end.y - start.y;
-        int deltaZ = end.z - start.z;
-
-        int steps = Mathf.Max(Mathf.Abs(deltaX), Mathf.Abs(deltaY), Mathf.Abs(deltaZ));
-
-        if (steps == 0)
-        {
-            yield return start;
-            yield break;
-        }
-
-        for (int i = 1; i <= steps; i++)
-        {
-            float t = (float)i / steps;
-
-            int x = Mathf.RoundToInt(Mathf.Lerp(start.x, end.x, t));
-            int y = Mathf.RoundToInt(Mathf.Lerp(start.y, end.y, t));
-            int z = Mathf.RoundToInt(Mathf.Lerp(start.z, end.z, t));
-
-            yield return new Vector3Int(x, y, z);
-        }
     }
     
     /// <summary>
@@ -1247,55 +1243,51 @@ public class VoxelEditorTool : EditorTool
     /// <summary>
     /// Prefabの選択肢を表示する
     /// </summary>
-    private void DrawPrefabSelector()
+    private void DrawPrefabSelector(float availableHeight, float topOffset)
     {
-        GUILayout.Label("Prefab", EditorStyles.boldLabel);
-
-        GUILayout.Label(
-            _selectedPrefab != null
-                ? $"Selected : {_selectedPrefab.name}"
-                : "Selected : None"
-        );
-
         if (_prefabDatabase == null)
         {
-            EditorGUILayout.HelpBox(
-                "VoxelPrefabDatabase が見つかりません。",
-                MessageType.Warning
-            );
+            EditorGUILayout.HelpBox("VoxelPrefabDatabase が見つかりません。", MessageType.Warning);
             return;
         }
 
         if (_prefabDatabase.Prefabs.Count == 0)
         {
-            EditorGUILayout.HelpBox(
-                "Prefabが登録されていません。",
-                MessageType.Info
-            );
+            EditorGUILayout.HelpBox("Prefabが登録されていません。", MessageType.Info);
             return;
         }
+
+        availableHeight = Mathf.Max(0f, availableHeight);
 
         Rect areaRect = GUILayoutUtility.GetRect(
             GUIContent.none,
             GUIStyle.none,
-            GUILayout.Height(PrefabAreaHeight)
+            GUILayout.Height(availableHeight),
+            GUILayout.ExpandWidth(true)
         );
+
+        areaRect.y = topOffset;
+        areaRect.height = availableHeight;
 
         GUI.Box(areaRect, GUIContent.none, GUI.skin.box);
 
+        const float border = 2f;
         Rect scrollRect = new Rect(
-            areaRect.x + 2f,
-            areaRect.y + 2f,
-            areaRect.width - 4f,
-            areaRect.height - 4f
+            areaRect.x + border,
+            areaRect.y + border,
+            Mathf.Max(0f, areaRect.width - border * 2f),
+            Mathf.Max(0f, areaRect.height - border * 2f)
         );
 
-        float contentHeight = GetPrefabContentHeight();
+        int prefabCount = _prefabDatabase.Prefabs.Count;
+        int rows = Mathf.CeilToInt((float)prefabCount / PrefabColumns);
+        float contentHeight = rows * PrefabItemHeight + Mathf.Max(0, rows - 1) * PrefabItemSpacing;
 
+        float scrollbarWidth = GUI.skin.verticalScrollbar.fixedWidth;
         Rect contentRect = new Rect(
             0f,
             0f,
-            scrollRect.width - GUI.skin.verticalScrollbar.fixedWidth,
+            Mathf.Max(scrollRect.width - scrollbarWidth),
             contentHeight
         );
 
@@ -1307,9 +1299,9 @@ public class VoxelEditorTool : EditorTool
             true
         );
 
-        float itemWidth = GetPrefabItemWidth(contentRect.width);
+        float itemWidth = (contentRect.width - PrefabItemSpacing) / PrefabColumns;
 
-        for (int i = 0; i < _prefabDatabase.Prefabs.Count; i++)
+        for (int i = 0; i < prefabCount; i++)
         {
             int column = i % PrefabColumns;
             int row = i / PrefabColumns;
@@ -1317,51 +1309,27 @@ public class VoxelEditorTool : EditorTool
             float x = column * (itemWidth + PrefabItemSpacing);
             float y = row * (PrefabItemHeight + PrefabItemSpacing);
 
-            Rect itemRect = new Rect(
-                x,
-                y,
-                itemWidth,
-                PrefabItemHeight
-            );
+            Rect itemRect = new Rect(x, y, itemWidth, PrefabItemHeight);
 
-            DrawPrefabButton(
-                _prefabDatabase.Prefabs[i],
-                itemRect
-            );
+            DrawPrefabButton(_prefabDatabase.Prefabs[i], itemRect);
         }
 
         GUI.EndScrollView();
     }
-
-    private float GetPrefabItemWidth(float availableWidth)
-    {
-        return (availableWidth - PrefabItemSpacing) / PrefabColumns;
-    }
-
-    private float GetPrefabContentHeight()
-    {
-        int prefabCount = _prefabDatabase.Prefabs.Count;
-        int rows = Mathf.CeilToInt((float)prefabCount / PrefabColumns);
-
-        return rows * PrefabItemHeight + Mathf.Max(0, rows - 1) * PrefabItemSpacing;
-    }
     
-    private void DrawPrefabButton(
-        GameObject prefab,
-        Rect buttonRect)
+    /// <summary>
+    /// Prefabのボタンを作成する
+    /// </summary>
+    /// <param name="prefab"></param>
+    /// <param name="buttonRect"></param>
+    private void DrawPrefabButton(GameObject prefab, Rect buttonRect)
     {
-        if (prefab == null)
-        {
-            return;
-        }
+        if (prefab == null) return;
 
         Texture2D preview = GetPrefabPreview(prefab);
         bool selected = _selectedPrefab == prefab;
 
-        if (GUI.Button(
-                buttonRect,
-                GUIContent.none,
-                GUI.skin.button))
+        if (GUI.Button(buttonRect, GUIContent.none, GUI.skin.button))
         {
             _selectedPrefab = prefab;
             SceneView.RepaintAll();
@@ -1376,12 +1344,7 @@ public class VoxelEditorTool : EditorTool
                 buttonRect.height - PrefabLabelHeight - PrefabPreviewPadding * 2f
             );
 
-            GUI.DrawTexture(
-                previewRect,
-                preview,
-                ScaleMode.ScaleToFit,
-                true
-            );
+            GUI.DrawTexture(previewRect, preview, ScaleMode.ScaleToFit, true);
         }
 
         Rect labelRect = new Rect(
@@ -1391,101 +1354,25 @@ public class VoxelEditorTool : EditorTool
             PrefabLabelHeight
         );
 
-        GUI.Label(
-            labelRect,
-            prefab.name,
-            EditorStyles.centeredGreyMiniLabel
-        );
+        GUI.Label(labelRect, prefab.name, EditorStyles.centeredGreyMiniLabel);
 
         if (selected)
         {
-            Color previousColor = Handles.color;
-            Handles.color = Color.yellow;
-
-            Handles.DrawAAPolyLine(
-                3f,
-                new Vector3(buttonRect.x, buttonRect.y),
-                new Vector3(buttonRect.xMax, buttonRect.y),
-                new Vector3(buttonRect.xMax, buttonRect.yMax),
-                new Vector3(buttonRect.x, buttonRect.yMax),
-                new Vector3(buttonRect.x, buttonRect.y)
-            );
-
-            Handles.color = previousColor;
+            DrawPrefabSelectionBorder(buttonRect);
         }
     }
     
-    /// <summary>
-    /// Prefabの回転UIを表示します。
-    /// </summary>
-    private void DrawPrefabRotationUI()
+    private void DrawPrefabSelectionBorder(Rect rect)
     {
-        GUILayout.Space(5f);
+        float width = PrefabSelectionBorderWidth;
+        Color previousColor = GUI.color;
+        GUI.color = Color.yellow;
 
-        GUILayout.Label(
-            "Prefab Rotation",
-            EditorStyles.boldLabel
-        );
+        GUI.DrawTexture(new Rect(rect.x, rect.y, rect.width, width), Texture2D.whiteTexture);
+        GUI.DrawTexture(new Rect(rect.x, rect.yMax - width, rect.width, width), Texture2D.whiteTexture);
+        GUI.DrawTexture(new Rect(rect.x, rect.y, width, rect.height), Texture2D.whiteTexture);
+        GUI.DrawTexture(new Rect(rect.xMax - width, rect.y, width, rect.height), Texture2D.whiteTexture);
 
-        GUILayout.BeginHorizontal();
-        if (GUILayout.Button(
-                "X +90",
-                GUILayout.Width(RotationButtonWidth),
-                GUILayout.Height(RotationButtonHeight)))
-        {
-            RotatePrefab(Vector3.right * 90f);
-        }
-        if (GUILayout.Button(
-                "X -90",
-                GUILayout.Width(RotationButtonWidth),
-                GUILayout.Height(RotationButtonHeight)))
-        {
-            RotatePrefab(Vector3.left * 90f);
-        }
-        GUILayout.EndHorizontal();
-
-        GUILayout.BeginHorizontal();
-        if (GUILayout.Button(
-                "Y +90",
-                GUILayout.Width(RotationButtonWidth),
-                GUILayout.Height(RotationButtonHeight)))
-        {
-            RotatePrefab(Vector3.up * 90f);
-        }
-        if (GUILayout.Button(
-                "Y -90",
-                GUILayout.Width(RotationButtonWidth),
-                GUILayout.Height(RotationButtonHeight)))
-        {
-            RotatePrefab(Vector3.down * 90f);
-        }
-        GUILayout.EndHorizontal();
-        
-        GUILayout.BeginHorizontal();
-        if (GUILayout.Button(
-                "Z +90",
-                GUILayout.Width(RotationButtonWidth),
-                GUILayout.Height(RotationButtonHeight)))
-        {
-            RotatePrefab(Vector3.forward * 90f);
-        }
-        if (GUILayout.Button(
-                "Z -90",
-                GUILayout.Width(RotationButtonWidth),
-                GUILayout.Height(RotationButtonHeight)))
-        {
-            RotatePrefab(Vector3.back * 90f);
-        }
-        GUILayout.EndHorizontal();
-
-        GUILayout.Label(
-            $"Rotation : ({_prefabRotation.x:0}°, {_prefabRotation.y:0}°, {_prefabRotation.z:0}°)"
-        );
-
-        if (GUILayout.Button("回転をリセット"))
-        {
-            _prefabRotation = Vector3.zero;
-            SceneView.RepaintAll();
-        }
+        GUI.color = previousColor;
     }
 }
