@@ -27,7 +27,6 @@ public class VoxelEditorTool : EditorTool
         {
             _hitPosition = hit.point;
 
-            // Rayが当たった面の法線方向へ1ブロック分移動
             Vector3 placementPosition =
                 hit.point + hit.normal * (VoxelGridUtility.CellSize * 0.5f);
 
@@ -50,9 +49,7 @@ public class VoxelEditorTool : EditorTool
         {
             if (_hasHit)
             {
-                Debug.Log(
-                    $"Placement Grid Position: {_gridPosition}"
-                );
+                PlaceBlock();
             }
 
             currentEvent.Use();
@@ -62,6 +59,65 @@ public class VoxelEditorTool : EditorTool
         {
             SceneView.RepaintAll();
         }
+    }
+
+    private void PlaceBlock()
+    {
+        GameObject prefab = GetSelectedPrefab();
+
+        if (prefab == null)
+        {
+            Debug.LogWarning(
+                "Voxel Editor: ProjectウィンドウでPrefabを選択してください。"
+            );
+
+            return;
+        }
+
+        Vector3 worldPosition =
+            VoxelGridUtility.GridToWorld(_gridPosition);
+
+        GameObject block =
+            (GameObject)PrefabUtility.InstantiatePrefab(prefab);
+
+        block.transform.position = worldPosition;
+
+        Undo.RegisterCreatedObjectUndo(
+            block,
+            "Place Voxel Block"
+        );
+
+        Debug.Log(
+            $"Placed: {prefab.name} at {_gridPosition}"
+        );
+    }
+
+    private GameObject GetSelectedPrefab()
+    {
+        Object selectedObject = Selection.activeObject;
+
+        if (selectedObject == null)
+        {
+            return null;
+        }
+
+        if (selectedObject is not GameObject selectedGameObject)
+        {
+            return null;
+        }
+
+        if (!AssetDatabase.Contains(selectedGameObject))
+        {
+            return null;
+        }
+
+        if (PrefabUtility.GetPrefabAssetType(selectedGameObject) ==
+            PrefabAssetType.NotAPrefab)
+        {
+            return null;
+        }
+
+        return selectedGameObject;
     }
 
     private void DrawPlacementPreview()
@@ -89,26 +145,30 @@ public class VoxelEditorTool : EditorTool
         Handles.BeginGUI();
 
         GUILayout.BeginArea(
-            new Rect(10, 10, 240, 120),
+            new Rect(10, 10, 240, 140),
             "Voxel Editor",
             GUI.skin.window
         );
 
+        GameObject prefab = GetSelectedPrefab();
+
+        if (prefab != null)
+        {
+            GUILayout.Label($"Prefab : {prefab.name}");
+        }
+        else
+        {
+            GUILayout.Label("Prefab : None");
+        }
+
+        GUILayout.Space(5);
+
         if (_hasHit)
         {
             GUILayout.Label("Placement Position");
-
-            GUILayout.Label(
-                $"X : {_gridPosition.x}"
-            );
-
-            GUILayout.Label(
-                $"Y : {_gridPosition.y}"
-            );
-
-            GUILayout.Label(
-                $"Z : {_gridPosition.z}"
-            );
+            GUILayout.Label($"X : {_gridPosition.x}");
+            GUILayout.Label($"Y : {_gridPosition.y}");
+            GUILayout.Label($"Z : {_gridPosition.z}");
         }
         else
         {
