@@ -51,6 +51,27 @@ public class VoxelEditorTool : EditorTool
     private Vector3Int _lastErasedPosition;
     private bool _hasLastErasedPosition;
     
+    private const float GUIWidth = 200f;
+    private const float GUIHeight = 700f;
+    
+    // -------------------------
+    // Prefab回転
+    // -------------------------
+
+    private Vector3 _prefabRotation = Vector3.zero;
+
+    private const float RotationButtonWidth = 42f;
+    private const float RotationButtonHeight = 24f;
+
+    // -------------------------
+    // グリッド
+    // -------------------------
+
+    [SerializeField] private bool _gridVisible = true;
+
+    private const int GridSize = 20;
+    private const float GridLineWidth = 1f;
+    
     // -------------------------
     // プレファブ
     // -------------------------
@@ -134,6 +155,7 @@ public class VoxelEditorTool : EditorTool
         // プレビュー
         // -------------------------
 
+        DrawGrid();
         DrawPlacementPreview();
         DrawErasePreview();
         DrawGUI();
@@ -572,8 +594,8 @@ public class VoxelEditorTool : EditorTool
         Vector3 worldPosition = VoxelGridUtility.GridToWorld(_gridPosition);
 
         GameObject block = (GameObject)PrefabUtility.InstantiatePrefab(prefab);
-
         block.transform.position = worldPosition;
+        block.transform.rotation = Quaternion.Euler(_prefabRotation);
 
         Undo.RegisterCreatedObjectUndo(
             block,
@@ -626,6 +648,35 @@ public class VoxelEditorTool : EditorTool
 
         Undo.DestroyObjectImmediate(_eraseTarget);
     }
+    
+    /// <summary>
+    /// 選択中のPrefabを指定した軸方向に90度回転する
+    /// </summary>
+    private void RotatePrefab(Vector3 rotation)
+    {
+        _prefabRotation += rotation;
+
+        _prefabRotation.x = NormalizeAngle(_prefabRotation.x);
+        _prefabRotation.y = NormalizeAngle(_prefabRotation.y);
+        _prefabRotation.z = NormalizeAngle(_prefabRotation.z);
+
+        SceneView.RepaintAll();
+    }
+
+    /// <summary>
+    /// 角度を0～359度に正規化する
+    /// </summary>
+    private float NormalizeAngle(float angle)
+    {
+        angle %= 360f;
+
+        if (angle < 0f)
+        {
+            angle += 360f;
+        }
+
+        return angle;
+    }
 
     // =========================================================
     // 選択中のPrefabを取得
@@ -634,6 +685,53 @@ public class VoxelEditorTool : EditorTool
     private GameObject GetSelectedPrefab()
     {
         return _selectedPrefab;
+    }
+    
+    // =========================================================
+    // グリッド
+    // =========================================================
+    
+    private void DrawGrid()
+    {
+        if (!_gridVisible)
+        {
+            return;
+        }
+
+        float cellSize = VoxelGridUtility.CellSize;
+
+        if (cellSize <= 0f)
+        {
+            return;
+        }
+
+        Vector3 center = Vector3.zero;
+
+        if (_voxelWorld != null)
+        {
+            center.y = _voxelWorld.MinimumHeight;
+        }
+
+        float halfSize = GridSize * cellSize * 0.5f;
+
+        Handles.color = new Color(0.5f, 0.5f, 0.5f, 0.35f);
+
+        for (int i = 0; i <= GridSize; i++)
+        {
+            float offset = -halfSize + i * cellSize;
+
+            Vector3 startX = center + new Vector3(-halfSize, 0f, offset);
+            Vector3 endX = center + new Vector3(halfSize, 0f, offset);
+
+            Handles.DrawLine(startX, endX, GridLineWidth);
+
+            Vector3 startZ = center + new Vector3(offset, 0f, -halfSize);
+            Vector3 endZ = center + new Vector3(offset, 0f, halfSize);
+
+            Handles.DrawLine(startZ, endZ, GridLineWidth);
+        }
+
+        Handles.color = Color.white;
     }
 
     // =========================================================
@@ -748,7 +846,7 @@ public class VoxelEditorTool : EditorTool
         Handles.BeginGUI();
 
         GUILayout.BeginArea(
-            new Rect(10, 10, 200, 400),
+            new Rect(10, 10, GUIWidth, GUIHeight),
             "Voxel Editor",
             GUI.skin.window
         );
@@ -774,6 +872,18 @@ public class VoxelEditorTool : EditorTool
         }
 
         GUILayout.EndHorizontal();
+        
+        GUILayout.Space(5f);
+
+        string gridText = _gridVisible
+            ? "グリッド : ON"
+            : "グリッド : OFF";
+
+        if (GUILayout.Button(gridText))
+        {
+            _gridVisible = !_gridVisible;
+            SceneView.RepaintAll();
+        }
 
         GUILayout.Space(5);
 
@@ -842,6 +952,7 @@ public class VoxelEditorTool : EditorTool
         //Prefabの選択肢
         if (_toolMode == ToolMode.Pen)
         {
+            DrawPrefabRotationUI();
             DrawPrefabSelector();
         }
 
@@ -864,7 +975,7 @@ public class VoxelEditorTool : EditorTool
     // =========================================================
     // 最低高度
     // =========================================================
-
+    
     private bool TryGetMinimumHeightPosition(Ray ray, out Vector3Int gridPosition)
     {
         float minimumHeight = _voxelWorld.MinimumHeight;
@@ -1304,6 +1415,80 @@ public class VoxelEditorTool : EditorTool
             );
 
             Handles.color = previousColor;
+        }
+    }
+    
+    /// <summary>
+    /// Prefabの回転UIを表示します。
+    /// </summary>
+    private void DrawPrefabRotationUI()
+    {
+        GUILayout.Space(5f);
+
+        GUILayout.Label(
+            "Prefab Rotation",
+            EditorStyles.boldLabel
+        );
+
+        GUILayout.BeginHorizontal();
+        if (GUILayout.Button(
+                "X +90",
+                GUILayout.Width(RotationButtonWidth),
+                GUILayout.Height(RotationButtonHeight)))
+        {
+            RotatePrefab(Vector3.right * 90f);
+        }
+        if (GUILayout.Button(
+                "X -90",
+                GUILayout.Width(RotationButtonWidth),
+                GUILayout.Height(RotationButtonHeight)))
+        {
+            RotatePrefab(Vector3.left * 90f);
+        }
+        GUILayout.EndHorizontal();
+
+        GUILayout.BeginHorizontal();
+        if (GUILayout.Button(
+                "Y +90",
+                GUILayout.Width(RotationButtonWidth),
+                GUILayout.Height(RotationButtonHeight)))
+        {
+            RotatePrefab(Vector3.up * 90f);
+        }
+        if (GUILayout.Button(
+                "Y -90",
+                GUILayout.Width(RotationButtonWidth),
+                GUILayout.Height(RotationButtonHeight)))
+        {
+            RotatePrefab(Vector3.down * 90f);
+        }
+        GUILayout.EndHorizontal();
+        
+        GUILayout.BeginHorizontal();
+        if (GUILayout.Button(
+                "Z +90",
+                GUILayout.Width(RotationButtonWidth),
+                GUILayout.Height(RotationButtonHeight)))
+        {
+            RotatePrefab(Vector3.forward * 90f);
+        }
+        if (GUILayout.Button(
+                "Z -90",
+                GUILayout.Width(RotationButtonWidth),
+                GUILayout.Height(RotationButtonHeight)))
+        {
+            RotatePrefab(Vector3.back * 90f);
+        }
+        GUILayout.EndHorizontal();
+
+        GUILayout.Label(
+            $"Rotation : ({_prefabRotation.x:0}°, {_prefabRotation.y:0}°, {_prefabRotation.z:0}°)"
+        );
+
+        if (GUILayout.Button("回転をリセット"))
+        {
+            _prefabRotation = Vector3.zero;
+            SceneView.RepaintAll();
         }
     }
 }
