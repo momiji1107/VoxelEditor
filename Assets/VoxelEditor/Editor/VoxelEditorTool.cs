@@ -51,13 +51,15 @@ public class VoxelEditorTool : EditorTool
     private Vector3Int _lastErasedPosition;
     private bool _hasLastErasedPosition;
     
-    private const float GUIWidth = 200f;
-    private const float GUIHeight = 700f;
+    private const float GuiWidth = 200f;
+    private const float GuiHeight = 700f;
+    private const float GuiMargin = 10f;
     
     // -------------------------
     // Prefab回転
     // -------------------------
 
+    [SerializeField] private bool _showRotationSettings;
     private Vector3 _prefabRotation = Vector3.zero;
 
     private const float RotationButtonWidth = 42f;
@@ -68,12 +70,17 @@ public class VoxelEditorTool : EditorTool
     // -------------------------
 
     [SerializeField] private bool _gridVisible = true;
-
-    private const int GridSize = 20;
+    private const float GridSizeButtonWidth = 25f;
     private const float GridLineWidth = 1f;
+    private const int GridSizeMin = 40;
+    private const int GridSizeMax = 10000;
+    private const int GridSizeStep = 40;
+
+    private int _gridSize = 40;
+    private static readonly Color GridColor = new(0.5f, 0.5f, 0.5f, 0.35f);
     
     // -------------------------
-    // プレファブ
+    // Prefab一覧
     // -------------------------
     private VoxelPrefabDatabase _prefabDatabase;
     private GameObject _selectedPrefab;
@@ -649,12 +656,16 @@ public class VoxelEditorTool : EditorTool
         Undo.DestroyObjectImmediate(_eraseTarget);
     }
     
+    // =========================================================
+    // 回転
+    // =========================================================
+    
     /// <summary>
     /// 選択中のPrefabを指定した軸方向に90度回転する
     /// </summary>
     private void RotatePrefab(Vector3 rotation)
     {
-        _prefabRotation += rotation;
+        _prefabRotation += rotation * 90f;
 
         _prefabRotation.x = NormalizeAngle(_prefabRotation.x);
         _prefabRotation.y = NormalizeAngle(_prefabRotation.y);
@@ -669,13 +680,46 @@ public class VoxelEditorTool : EditorTool
     private float NormalizeAngle(float angle)
     {
         angle %= 360f;
+        if (angle < 0f) angle += 360f;
+        return angle;
+    }
+    
+    /// <summary>
+    /// 回転ツールのセッティング
+    /// </summary>
+    private void DrawRotationSettings()
+    {
+        string rotationLabel = _showRotationSettings ? "Rotation ▲" : "Rotation ▼";
 
-        if (angle < 0f)
+        if (GUILayout.Button(rotationLabel))
         {
-            angle += 360f;
+            _showRotationSettings = !_showRotationSettings;
         }
 
-        return angle;
+        if (!_showRotationSettings) return;
+
+        GUILayout.BeginHorizontal();
+
+        if (GUILayout.Button("X -90", GUILayout.Height(RotationButtonHeight))) RotatePrefab(Vector3.left);
+        if (GUILayout.Button("X +90", GUILayout.Height(RotationButtonHeight))) RotatePrefab(Vector3.right);
+
+        GUILayout.EndHorizontal();
+
+        GUILayout.BeginHorizontal();
+
+        if (GUILayout.Button("Y -90", GUILayout.Height(RotationButtonHeight))) RotatePrefab(Vector3.down);
+        if (GUILayout.Button("Y +90", GUILayout.Height(RotationButtonHeight))) RotatePrefab(Vector3.up);
+
+        GUILayout.EndHorizontal();
+
+        GUILayout.BeginHorizontal();
+
+        if (GUILayout.Button("Z -90", GUILayout.Height(RotationButtonHeight))) RotatePrefab(Vector3.back);
+        if (GUILayout.Button("Z +90", GUILayout.Height(RotationButtonHeight))) RotatePrefab(Vector3.forward);
+
+        GUILayout.EndHorizontal();
+
+        GUILayout.Label($"Rotation : {_prefabRotation}");
     }
 
     // =========================================================
@@ -693,45 +737,65 @@ public class VoxelEditorTool : EditorTool
     
     private void DrawGrid()
     {
-        if (!_gridVisible)
-        {
-            return;
-        }
+        if (!_gridVisible) return;
 
         float cellSize = VoxelGridUtility.CellSize;
+        if (cellSize <= 0f) return;
 
-        if (cellSize <= 0f)
-        {
-            return;
-        }
+        int gridY = _voxelWorld != null ? _voxelWorld.MinimumHeight : 0;
+        Vector3 center = VoxelGridUtility.GridToWorld(new Vector3Int(0, gridY, 0));
+        center -= new Vector3(cellSize * 0.5f, 0f, cellSize * 0.5f);
 
-        Vector3 center = Vector3.zero;
+        float halfSize = _gridSize * cellSize * 0.5f;
+        Handles.color = GridColor;
 
-        if (_voxelWorld != null)
-        {
-            center.y = _voxelWorld.MinimumHeight;
-        }
-
-        float halfSize = GridSize * cellSize * 0.5f;
-
-        Handles.color = new Color(0.5f, 0.5f, 0.5f, 0.35f);
-
-        for (int i = 0; i <= GridSize; i++)
+        for (int i = 0; i <= _gridSize; i++)
         {
             float offset = -halfSize + i * cellSize;
 
-            Vector3 startX = center + new Vector3(-halfSize, 0f, offset);
-            Vector3 endX = center + new Vector3(halfSize, 0f, offset);
-
-            Handles.DrawLine(startX, endX, GridLineWidth);
-
-            Vector3 startZ = center + new Vector3(offset, 0f, -halfSize);
-            Vector3 endZ = center + new Vector3(offset, 0f, halfSize);
-
-            Handles.DrawLine(startZ, endZ, GridLineWidth);
+            Handles.DrawLine(center + new Vector3(-halfSize, 0f, offset), center + new Vector3(halfSize, 0f, offset), GridLineWidth);
+            Handles.DrawLine(center + new Vector3(offset, 0f, -halfSize), center + new Vector3(offset, 0f, halfSize), GridLineWidth);
         }
 
         Handles.color = Color.white;
+    }
+    
+    /// <summary>
+    /// グリッドツールのセッティング
+    /// </summary>
+    private void DrawGridSettings()
+    {
+        GUILayout.BeginHorizontal();
+
+        if (GUILayout.Button(_gridVisible ? "Grid : ON" : "Grid : OFF"))
+        {
+            _gridVisible = !_gridVisible;
+            SceneView.RepaintAll();
+        }
+
+        GUILayout.EndHorizontal();
+
+        if (!_gridVisible) return;
+
+        GUILayout.BeginHorizontal();
+
+        GUILayout.Label("Grid Size", GUILayout.Width(60f));
+
+        if (GUILayout.Button("-", GUILayout.Width(GridSizeButtonWidth)))
+        {
+            _gridSize = Mathf.Max(GridSizeMin, _gridSize - GridSizeStep);
+            SceneView.RepaintAll();
+        }
+
+        GUILayout.Label(_gridSize.ToString(), GUI.skin.textField, GUILayout.ExpandWidth(true));
+
+        if (GUILayout.Button("+", GUILayout.Width(GridSizeButtonWidth)))
+        {
+            _gridSize = Mathf.Min(GridSizeMax, _gridSize + GridSizeStep);
+            SceneView.RepaintAll();
+        }
+
+        GUILayout.EndHorizontal();
     }
 
     // =========================================================
@@ -740,43 +804,24 @@ public class VoxelEditorTool : EditorTool
 
     private void DrawPlacementPreview()
     {
-        if (!_hasHit)
-        {
-            return;
-        }
+        if (!_hasHit) return;
 
         Vector3Int previewPosition = _gridPosition;
+        if (_isDragging && _hasDragStart && _hasDragPreview && _dragDirection != Vector3Int.zero) previewPosition = _dragPreviewPosition;
 
-        if (_isDragging &&
-            _hasDragStart &&
-            _hasDragPreview &&
-            _dragDirection !=
-            Vector3Int.zero)
-        {
-            previewPosition = _dragPreviewPosition;
-        }
+        bool canPlace = _voxelWorld != null && !_voxelWorld.IsBelowMinimumHeight(previewPosition) && !_voxelWorld.HasBlock(previewPosition);
 
-        bool canPlace =
-            _voxelWorld != null &&
-            !_voxelWorld.IsBelowMinimumHeight(previewPosition) &&
-            !_voxelWorld.HasBlock(previewPosition);
-
-        Handles.color = canPlace
-                ? Color.green
-                : Color.red;
+        Handles.color = canPlace ? Color.green : Color.red;
 
         Vector3 worldPosition = VoxelGridUtility.GridToWorld(previewPosition);
+        Quaternion rotation = Quaternion.Euler(_prefabRotation);
 
-        Handles.DrawWireCube(worldPosition, Vector3.one * VoxelGridUtility.CellSize);
-
-        if (_isDragging &&
-            _hasDragStart &&
-            _hasDragPreview &&
-            _dragDirection !=
-            Vector3Int.zero)
+        using (new Handles.DrawingScope(Matrix4x4.TRS(worldPosition, rotation, Vector3.one)))
         {
-            DrawDragPreviewLine(_dragStartPosition, previewPosition);
+            Handles.DrawWireCube(Vector3.zero, Vector3.one * VoxelGridUtility.CellSize);
         }
+
+        if (_isDragging && _hasDragStart && _hasDragPreview && _dragDirection != Vector3Int.zero) DrawDragPreviewLine(_dragStartPosition, previewPosition);
 
         Handles.color = Color.white;
     }
@@ -838,64 +883,29 @@ public class VoxelEditorTool : EditorTool
     }
 
     // =========================================================
-    // GUI
+    // GUIのデザイン
     // =========================================================
 
     private void DrawGUI()
     {
         Handles.BeginGUI();
 
-        GUILayout.BeginArea(
-            new Rect(10, 10, GUIWidth, GUIHeight),
-            "Voxel Editor",
-            GUI.skin.window
-        );
+        GUILayout.BeginArea(new Rect(GuiMargin, GuiMargin, GuiWidth, GuiHeight), "Voxel Editor", GUI.skin.window);
 
         GUILayout.Label("Tool");
 
         GUILayout.BeginHorizontal();
 
-        if (GUILayout.Toggle(
-                _toolMode == ToolMode.Pen,
-                "Pen",
-                GUI.skin.button))
-        {
-            _toolMode = ToolMode.Pen;
-        }
-
-        if (GUILayout.Toggle(
-                _toolMode == ToolMode.Eraser,
-                "Eraser",
-                GUI.skin.button))
-        {
-            _toolMode = ToolMode.Eraser;
-        }
+        if (GUILayout.Toggle(_toolMode == ToolMode.Pen, "Pen", GUI.skin.button)) _toolMode = ToolMode.Pen;
+        if (GUILayout.Toggle(_toolMode == ToolMode.Eraser, "Eraser", GUI.skin.button)) _toolMode = ToolMode.Eraser;
 
         GUILayout.EndHorizontal();
-        
-        GUILayout.Space(5f);
-
-        string gridText = _gridVisible
-            ? "グリッド : ON"
-            : "グリッド : OFF";
-
-        if (GUILayout.Button(gridText))
-        {
-            _gridVisible = !_gridVisible;
-            SceneView.RepaintAll();
-        }
 
         GUILayout.Space(5);
 
-        // -------------------------
-        // ペンのドラッグ
-        // -------------------------
-
         if (_toolMode == ToolMode.Pen)
         {
-            string penDragText = _penDragEnabled 
-                                ? "ペンドラッグ : ON"
-                                : "ペンドラッグ : OFF";
+            string penDragText = _penDragEnabled ? "Drag : ON" : "Drag : OFF";
 
             if (GUILayout.Button(penDragText))
             {
@@ -904,15 +914,9 @@ public class VoxelEditorTool : EditorTool
             }
         }
 
-        // -------------------------
-        // 消しゴムのドラッグ
-        // -------------------------
-
         if (_toolMode == ToolMode.Eraser)
         {
-            string eraserDragText = _eraserDragEnabled
-                                    ? "消しゴムドラッグ : ON"
-                                    : "消しゴムドラッグ : OFF";
+            string eraserDragText = _eraserDragEnabled ? "Drag : ON" : "Drag : OFF";
 
             if (GUILayout.Button(eraserDragText))
             {
@@ -920,40 +924,33 @@ public class VoxelEditorTool : EditorTool
                 CancelDrag();
             }
         }
-        
+
         GUILayout.Space(5);
 
         if (_toolMode == ToolMode.Pen)
         {
             if (_hasHit)
             {
-                GUILayout.Label(
-                    "Placement Position"
-                );
-
-                GUILayout.Label(
-                    $"(X,Y,Z) = ({_gridPosition.x}, {_gridPosition.y}, {_gridPosition.z})"
-                );
+                GUILayout.Label("Placement Position");
+                GUILayout.Label($"(X,Y,Z) = ({_gridPosition.x}, {_gridPosition.y}, {_gridPosition.z})");
             }
             else
             {
-                GUILayout.Label(
-                    "No Hit"
-                );
+                GUILayout.Label("No Hit");
             }
-        }
-        else if(_toolMode == ToolMode.Eraser)
-        {
-            GUILayout.Label(
-                "Eraser Mode"
-            );
-        }
-        
-        //Prefabの選択肢
-        if (_toolMode == ToolMode.Pen)
-        {
-            DrawPrefabRotationUI();
+
+            GUILayout.Space(5);
+            DrawGridSettings();
+
+            GUILayout.Space(5);
+            DrawRotationSettings();
+
+            GUILayout.Space(5);
             DrawPrefabSelector();
+        }
+        else
+        {
+            GUILayout.Label("Eraser Mode");
         }
 
         GUILayout.EndArea();
@@ -1256,8 +1253,8 @@ public class VoxelEditorTool : EditorTool
 
         GUILayout.Label(
             _selectedPrefab != null
-                ? $"選択中 : {_selectedPrefab.name}"
-                : "選択中 : None"
+                ? $"Selected : {_selectedPrefab.name}"
+                : "Selected : None"
         );
 
         if (_prefabDatabase == null)
