@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using UnityEditor;
 using UnityEditor.EditorTools;
 using UnityEngine;
+using VoxelEditor.Editor;
 
 [EditorTool("Voxel Editor")]
 public class VoxelEditorTool : EditorTool
@@ -17,9 +18,12 @@ public class VoxelEditorTool : EditorTool
     private Vector3Int _gridPosition;
     private bool _hasHit;
     
+    private bool _hasDragStart;
     private bool _isDragging;
-    private Vector3Int _lastPlacedPosition;
     private bool _hasLastPlacedPosition;
+    private Vector3Int _dragStartPosition;
+    private Vector3Int _lastPlacedPosition;
+    private Vector3Int _dragDirection;
     
     private ToolMode _toolMode = ToolMode.Pen;
     private GameObject _eraseTarget;
@@ -57,12 +61,13 @@ public class VoxelEditorTool : EditorTool
         {
             _isDragging = true;
             _hasLastPlacedPosition = false;
+            _hasDragStart = false;
 
             if (_toolMode == ToolMode.Pen)
             {
                 if (_hasHit)
                 {
-                    PlaceBlock();
+                    StartPenDrag();
                 }
             }
             else
@@ -97,7 +102,11 @@ public class VoxelEditorTool : EditorTool
             currentEvent.button == 0)
         {
             _isDragging = false;
+
             _hasLastPlacedPosition = false;
+            _hasDragStart = false;
+
+            _dragDirection = Vector3Int.zero;
         }
 
         if (currentEvent.type == EventType.MouseMove)
@@ -148,8 +157,7 @@ public class VoxelEditorTool : EditorTool
         _hasHit = false;
     }
     
-    private void UpdateEraseTarget(
-        Event currentEvent)
+    private void UpdateEraseTarget(Event currentEvent)
     {
         _eraseTarget = null;
 
@@ -200,6 +208,12 @@ public class VoxelEditorTool : EditorTool
 
             return;
         }
+        
+        if (_voxelWorld.HasBlock(
+                _gridPosition))
+        {
+            return;
+        }
 
         Vector3 worldPosition =
             VoxelGridUtility.GridToWorld(_gridPosition);
@@ -230,6 +244,21 @@ public class VoxelEditorTool : EditorTool
         );
     }
     
+    private void StartPenDrag()
+    {
+        _dragStartPosition = _gridPosition;
+
+        _dragDirection = Vector3Int.zero;
+
+        PlaceBlock();
+
+        _lastPlacedPosition =
+            _gridPosition;
+
+        _hasLastPlacedPosition = true;
+        _hasDragStart = true;
+    }
+    
     private void PlaceDraggedBlocks()
     {
         if (!_hasHit)
@@ -240,20 +269,35 @@ public class VoxelEditorTool : EditorTool
         Vector3Int currentPosition =
             _gridPosition;
 
-        if (!_hasLastPlacedPosition)
+        if (!_hasDragStart)
         {
-            PlaceBlock();
-
-            _lastPlacedPosition =
-                currentPosition;
-
-            _hasLastPlacedPosition = true;
-
             return;
         }
 
+        if (_dragDirection == Vector3Int.zero)
+        {
+            Vector3Int difference =
+                currentPosition -
+                _dragStartPosition;
+
+            if (difference == Vector3Int.zero)
+            {
+                return;
+            }
+
+            _dragDirection =
+                GetDominantDirection(
+                    difference
+                );
+        }
+
+        Vector3Int targetPosition =
+            GetDragTargetPosition(
+                currentPosition
+            );
+
         if (_lastPlacedPosition ==
-            currentPosition)
+            targetPosition)
         {
             return;
         }
@@ -261,17 +305,18 @@ public class VoxelEditorTool : EditorTool
         foreach (Vector3Int position in
                  GetLinePositions(
                      _lastPlacedPosition,
-                     currentPosition))
+                     targetPosition))
         {
             _gridPosition = position;
 
             PlaceBlock();
         }
 
-        _gridPosition = currentPosition;
+        _gridPosition =
+            targetPosition;
 
         _lastPlacedPosition =
-            currentPosition;
+            targetPosition;
     }
     
     private void EraseBlock()
@@ -290,6 +335,13 @@ public class VoxelEditorTool : EditorTool
             VoxelGridUtility.WorldToGrid(
                 _eraseTarget.transform.position
             );
+
+        if (!_voxelWorld.TryGetBlock(
+                gridPosition,
+                out VoxelBlockData blockData))
+        {
+            return;
+        }
 
         Undo.RecordObject(
             _voxelWorld,
@@ -344,6 +396,9 @@ public class VoxelEditorTool : EditorTool
         bool canPlace =
             _voxelWorld != null &&
             !_voxelWorld.IsBelowMinimumHeight(
+                _gridPosition
+            ) &&
+            !_voxelWorld.HasBlock(
                 _gridPosition
             );
 
@@ -589,5 +644,59 @@ public class VoxelEditorTool : EditorTool
                 z
             );
         }
+    }
+    
+    private Vector3Int GetDominantDirection(
+        Vector3Int difference)
+    {
+        int absX =
+            Mathf.Abs(difference.x);
+
+        int absY =
+            Mathf.Abs(difference.y);
+
+        int absZ =
+            Mathf.Abs(difference.z);
+
+        if (absX >= absY &&
+            absX >= absZ)
+        {
+            return new Vector3Int(
+                difference.x > 0 ? 1 : -1,
+                0,
+                0
+            );
+        }
+
+        if (absY >= absX &&
+            absY >= absZ)
+        {
+            return new Vector3Int(
+                0,
+                difference.y > 0 ? 1 : -1,
+                0
+            );
+        }
+
+        return new Vector3Int(
+            0,
+            0,
+            difference.z > 0 ? 1 : -1
+        );
+    }
+    
+    private Vector3Int GetDragTargetPosition(
+        Vector3Int currentPosition)
+    {
+        Vector3Int difference =
+            currentPosition -
+            _dragStartPosition;
+
+        int distance =
+            difference.Dot(_dragDirection);
+
+        return
+            _dragStartPosition +
+            _dragDirection * distance;
     }
 }

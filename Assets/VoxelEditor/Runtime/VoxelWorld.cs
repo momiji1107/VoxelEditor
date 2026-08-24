@@ -13,7 +13,7 @@ public class VoxelWorld : MonoBehaviour
     public int MinimumHeight => _minimumHeight;
 
     public IReadOnlyList<VoxelBlockData> Blocks => _blocks;
-    
+
     public bool IsBelowMinimumHeight(
         Vector3Int gridPosition)
     {
@@ -46,5 +46,33 @@ public class VoxelWorld : MonoBehaviour
                 return;
             }
         }
+    }
+
+    public bool TryGetBlock(
+        Vector3Int gridPosition,
+        out VoxelBlockData blockData)
+    {
+        foreach (VoxelBlockData block in _blocks)
+        {
+            if (block.GridPosition == gridPosition)
+            {
+                blockData = block;
+
+                return true;
+            }
+        }
+
+        blockData = null;
+
+        return false;
+    }
+    
+    public bool HasBlock(
+        Vector3Int gridPosition)
+    {
+        return TryGetBlock(
+            gridPosition,
+            out _
+        );
     }
 }
