@@ -2,7 +2,6 @@ using System.Collections.Generic;
 using UnityEditor;
 using UnityEditor.EditorTools;
 using UnityEngine;
-using VoxelEditor.Editor;
 
 [EditorTool("Voxel Editor")]
 public class VoxelEditorTool : EditorTool
@@ -12,20 +11,46 @@ public class VoxelEditorTool : EditorTool
         Pen,
         Eraser
     }
-    
+
+    private Vector3Int _dragPreviewPosition;
+    private bool _hasDragPreview;
+
     private VoxelWorld _voxelWorld;
-    private Vector3 _hitPosition;
+
     private Vector3Int _gridPosition;
     private bool _hasHit;
-    
+
+    // -------------------------
+    // ドラッグ設定
+    // -------------------------
+
+    [SerializeField]
+    private bool _penDragEnabled = true;
+
+    [SerializeField]
+    private bool _eraserDragEnabled = true;
+
+    // -------------------------
+    // ドラッグ状態
+    // -------------------------
+
     private bool _hasDragStart;
     private bool _isDragging;
+
     private bool _hasLastPlacedPosition;
+
     private Vector3Int _dragStartPosition;
     private Vector3Int _lastPlacedPosition;
+
     private Vector3Int _dragDirection;
-    
-    private ToolMode _toolMode = ToolMode.Pen;
+
+    // -------------------------
+    // ツール
+    // -------------------------
+
+    private ToolMode _toolMode =
+        ToolMode.Pen;
+
     private GameObject _eraseTarget;
 
     public override GUIContent toolbarIcon
@@ -36,88 +61,197 @@ public class VoxelEditorTool : EditorTool
         }
     }
 
-    public override void OnToolGUI(EditorWindow window)
+    public override void OnToolGUI(
+        EditorWindow window)
     {
-        _voxelWorld = FindFirstObjectByType<VoxelWorld>();
+        _voxelWorld =
+            FindFirstObjectByType<VoxelWorld>();
 
-        Event currentEvent = Event.current;
+        Event currentEvent =
+            Event.current;
+
+        // -------------------------
+        // 通常時のカーソル判定
+        // -------------------------
 
         if (_toolMode == ToolMode.Pen)
         {
-            UpdatePlacementPosition(currentEvent);
+            UpdatePlacementPosition(
+                currentEvent
+            );
         }
         else
         {
-            UpdateEraseTarget(currentEvent);
+            UpdateEraseTarget(
+                currentEvent
+            );
         }
+
+        // -------------------------
+        // ドラッグ中の処理
+        // -------------------------
+
+        if (currentEvent.type ==
+                EventType.MouseDrag &&
+            currentEvent.button == 0 &&
+            _isDragging &&
+            !currentEvent.alt)
+        {
+            if (_toolMode ==
+                ToolMode.Pen)
+            {
+                if (_penDragEnabled)
+                {
+                    PlaceDraggedBlocks(
+                        currentEvent
+                    );
+                }
+            }
+            else
+            {
+                if (_eraserDragEnabled)
+                {
+                    EraseBlock();
+                }
+            }
+
+            currentEvent.Use();
+        }
+
+        // -------------------------
+        // プレビュー
+        // -------------------------
 
         DrawPlacementPreview();
         DrawErasePreview();
         DrawGUI();
 
-        if (currentEvent.type == EventType.MouseDown &&
+        // -------------------------
+        // ドラッグ開始
+        // -------------------------
+
+        if (currentEvent.type ==
+                EventType.MouseDown &&
             currentEvent.button == 0 &&
             !currentEvent.alt)
         {
-            _isDragging = true;
-            _hasLastPlacedPosition = false;
-            _hasDragStart = false;
-
-            if (_toolMode == ToolMode.Pen)
-            {
-                if (_hasHit)
-                {
-                    StartPenDrag();
-                }
-            }
-            else
-            {
-                EraseBlock();
-            }
+            StartMouseDrag(
+                currentEvent
+            );
 
             currentEvent.Use();
         }
-        
-        if (currentEvent.type == EventType.MouseDrag &&
-            currentEvent.button == 0 &&
-            _isDragging &&
-            !currentEvent.alt)
-        {
-            if (_toolMode == ToolMode.Pen)
-            {
-                if (_hasHit)
-                {
-                    PlaceDraggedBlocks();
-                }
-            }
-            else
-            {
-                EraseBlock();
-            }
 
-            currentEvent.Use();
-        }
-        
-        if (currentEvent.type == EventType.MouseUp &&
+        // -------------------------
+        // ドラッグ終了
+        // -------------------------
+
+        if (currentEvent.type ==
+                EventType.MouseUp &&
             currentEvent.button == 0)
         {
-            _isDragging = false;
+            EndMouseDrag();
 
-            _hasLastPlacedPosition = false;
-            _hasDragStart = false;
-
-            _dragDirection = Vector3Int.zero;
+            currentEvent.Use();
         }
 
-        if (currentEvent.type == EventType.MouseMove)
+        // -------------------------
+        // カーソル移動
+        // -------------------------
+
+        if (currentEvent.type ==
+            EventType.MouseMove)
         {
             SceneView.RepaintAll();
         }
     }
-    
+
+    // =========================================================
+    // マウス操作
+    // =========================================================
+
+    private void StartMouseDrag(
+        Event currentEvent)
+    {
+        _hasLastPlacedPosition = false;
+        _hasDragStart = false;
+
+        _dragDirection =
+            Vector3Int.zero;
+
+        if (_toolMode ==
+            ToolMode.Pen)
+        {
+            if (!_hasHit)
+            {
+                _isDragging = false;
+
+                return;
+            }
+
+            if (_penDragEnabled)
+            {
+                _isDragging = true;
+
+                StartPenDrag(
+                    currentEvent
+                );
+            }
+            else
+            {
+                _isDragging = false;
+
+                PlaceBlock();
+            }
+
+            return;
+        }
+
+        // -------------------------
+        // Eraser
+        // -------------------------
+
+        if (_eraserDragEnabled)
+        {
+            _isDragging = true;
+        }
+        else
+        {
+            _isDragging = false;
+        }
+
+        EraseBlock();
+    }
+
+    private void EndMouseDrag()
+    {
+        _isDragging = false;
+
+        _hasLastPlacedPosition = false;
+
+        _hasDragStart = false;
+
+        _dragDirection =
+            Vector3Int.zero;
+
+        _hasDragPreview = false;
+
+        SceneView.RepaintAll();
+    }
+
+    // =========================================================
+    // 配置位置
+    // =========================================================
+
+    /// <summary>
+    /// カーソルの指す対象から配置位置を取得します。
+    /// </summary>
     private void UpdatePlacementPosition(
         Event currentEvent)
     {
+        // ドラッグ中のペンでは、
+        // ブロックの面ではなくカーソル移動方向を使うため、
+        // 通常の配置位置更新を行います。
         Ray ray =
             HandleUtility.GUIPointToWorldRay(
                 currentEvent.mousePosition
@@ -147,7 +281,8 @@ public class VoxelEditorTool : EditorTool
                 ray,
                 out Vector3Int minimumPosition))
         {
-            _gridPosition = minimumPosition;
+            _gridPosition =
+                minimumPosition;
 
             _hasHit = true;
 
@@ -156,8 +291,13 @@ public class VoxelEditorTool : EditorTool
 
         _hasHit = false;
     }
-    
-    private void UpdateEraseTarget(Event currentEvent)
+
+    // =========================================================
+    // 消しゴム対象
+    // =========================================================
+
+    private void UpdateEraseTarget(
+        Event currentEvent)
     {
         _eraseTarget = null;
 
@@ -187,9 +327,236 @@ public class VoxelEditorTool : EditorTool
                 : hitObject;
     }
 
+    // =========================================================
+    // ペン
+    // =========================================================
+
+    private void StartPenDrag(
+        Event currentEvent)
+    {
+        _dragStartPosition =
+            _gridPosition;
+
+        _lastPlacedPosition =
+            _gridPosition;
+
+        _dragDirection =
+            Vector3Int.zero;
+
+        _dragPreviewPosition =
+            _gridPosition;
+
+        _hasDragPreview = true;
+
+        _hasDragStart = true;
+
+        _hasLastPlacedPosition = false;
+
+        PlaceBlock();
+
+        _hasLastPlacedPosition = true;
+
+        SceneView.RepaintAll();
+    }
+
+    /// <summary>
+    /// ドラッグ中のブロック配置。
+    /// 「開始位置からの方向」ではなく、
+    /// 「前回のカーソル位置から今回のカーソル位置」
+    /// の移動方向を使用します。
+    /// </summary>
+    private void PlaceDraggedBlocks(
+        Event currentEvent)
+    {
+        if (!_hasDragStart ||
+            !_hasLastPlacedPosition)
+        {
+            return;
+        }
+
+        // 最後に置いたブロックを基準に、
+        // カーソルがまだそのブロック上にあるか確認する
+        if (IsCursorOverLastPlacedBlock(
+                currentEvent))
+        {
+            return;
+        }
+
+        // カーソルが最後に置いたブロックから外れたので、
+        // 次に置く位置を決定する
+        Vector3Int nextPosition =
+            GetNearestAdjacentPosition(
+                currentEvent
+            );
+
+        if (_voxelWorld == null)
+        {
+            return;
+        }
+
+        // 最低高度より下なら配置しない
+        if (_voxelWorld.IsBelowMinimumHeight(
+                nextPosition))
+        {
+            _dragPreviewPosition =
+                nextPosition;
+
+            _hasDragPreview = true;
+
+            SceneView.RepaintAll();
+
+            return;
+        }
+
+        // すでにブロックがある場合は配置しない
+        if (_voxelWorld.HasBlock(
+                nextPosition))
+        {
+            _dragPreviewPosition =
+                nextPosition;
+
+            _hasDragPreview = true;
+
+            SceneView.RepaintAll();
+
+            return;
+        }
+
+        // 配置位置を更新
+        _gridPosition =
+            nextPosition;
+
+        PlaceBlock();
+
+        // 今配置したブロックを
+        // 次の基準ブロックにする
+        _lastPlacedPosition =
+            nextPosition;
+
+        _dragPreviewPosition =
+            nextPosition;
+
+        _hasDragPreview = true;
+
+        SceneView.RepaintAll();
+    }
+
+    /// <summary>
+    /// マウスの移動方向から
+    /// ブロックの配置方向を決定します。
+    /// </summary>
+    private Vector3Int GetMouseDragDirection(
+        Vector2 mouseDelta)
+    {
+        float absX =
+            Mathf.Abs(mouseDelta.x);
+
+        float absY =
+            Mathf.Abs(mouseDelta.y);
+
+        // --------------------------------
+        // 縦方向を優先
+        // --------------------------------
+        //
+        // 「上にドラッグ」と
+        // 「奥にドラッグ」が似ていても、
+        // 画面上で上下に動いた場合は
+        // Y方向として扱います。
+        //
+
+        if (absY >= absX)
+        {
+            if (mouseDelta.y < 0f)
+            {
+                // SceneViewでは上方向へ
+                // マウスを動かした場合、
+                // Yを上げる。
+                return Vector3Int.up;
+            }
+
+            return Vector3Int.down;
+        }
+
+        // --------------------------------
+        // 横方向
+        // --------------------------------
+
+        SceneView sceneView =
+            SceneView.lastActiveSceneView;
+
+        if (sceneView == null)
+        {
+            return mouseDelta.x > 0f
+                ? Vector3Int.right
+                : Vector3Int.left;
+        }
+
+        Camera sceneCamera =
+            sceneView.camera;
+
+        if (sceneCamera == null)
+        {
+            return mouseDelta.x > 0f
+                ? Vector3Int.right
+                : Vector3Int.left;
+        }
+
+        Vector3 cameraRight =
+            sceneCamera.transform.right;
+
+        cameraRight.y = 0f;
+
+        if (cameraRight.sqrMagnitude <
+            0.0001f)
+        {
+            return mouseDelta.x > 0f
+                ? Vector3Int.right
+                : Vector3Int.left;
+        }
+
+        cameraRight.Normalize();
+
+        // カメラ右方向に近いワールド軸を選択
+        if (Mathf.Abs(cameraRight.x) >=
+            Mathf.Abs(cameraRight.z))
+        {
+            if (mouseDelta.x > 0f)
+            {
+                return cameraRight.x > 0f
+                    ? Vector3Int.right
+                    : Vector3Int.left;
+            }
+
+            return cameraRight.x > 0f
+                ? Vector3Int.left
+                : Vector3Int.right;
+        }
+
+        if (mouseDelta.x > 0f)
+        {
+            return cameraRight.z > 0f
+                ? Vector3Int.forward
+                : Vector3Int.back;
+        }
+
+        return cameraRight.z > 0f
+            ? Vector3Int.back
+            : Vector3Int.forward;
+    }
+
+    // =========================================================
+    // ブロック配置
+    // =========================================================
+
     private void PlaceBlock()
     {
-        GameObject prefab = GetSelectedPrefab();
+        if (_voxelWorld == null)
+        {
+            return;
+        }
+
+        GameObject prefab =
+            GetSelectedPrefab();
 
         if (prefab == null)
         {
@@ -199,8 +566,9 @@ public class VoxelEditorTool : EditorTool
 
             return;
         }
-        
-        if (_voxelWorld.IsBelowMinimumHeight(_gridPosition))
+
+        if (_voxelWorld.IsBelowMinimumHeight(
+                _gridPosition))
         {
             Debug.LogWarning(
                 $"Voxel Editor: Minimum Height ({_voxelWorld.MinimumHeight}) より下には配置できません。"
@@ -208,7 +576,7 @@ public class VoxelEditorTool : EditorTool
 
             return;
         }
-        
+
         if (_voxelWorld.HasBlock(
                 _gridPosition))
         {
@@ -216,18 +584,24 @@ public class VoxelEditorTool : EditorTool
         }
 
         Vector3 worldPosition =
-            VoxelGridUtility.GridToWorld(_gridPosition);
+            VoxelGridUtility.GridToWorld(
+                _gridPosition
+            );
 
         GameObject block =
-            (GameObject)PrefabUtility.InstantiatePrefab(prefab);
+            (GameObject)
+            PrefabUtility.InstantiatePrefab(
+                prefab
+            );
 
-        block.transform.position = worldPosition;
+        block.transform.position =
+            worldPosition;
 
         Undo.RegisterCreatedObjectUndo(
             block,
             "Place Voxel Block"
         );
-        
+
         Undo.RecordObject(
             _voxelWorld,
             "Add Voxel Block"
@@ -243,82 +617,11 @@ public class VoxelEditorTool : EditorTool
             $"Placed: {prefab.name} at {_gridPosition}"
         );
     }
-    
-    private void StartPenDrag()
-    {
-        _dragStartPosition = _gridPosition;
 
-        _dragDirection = Vector3Int.zero;
+    // =========================================================
+    // 消しゴム
+    // =========================================================
 
-        PlaceBlock();
-
-        _lastPlacedPosition =
-            _gridPosition;
-
-        _hasLastPlacedPosition = true;
-        _hasDragStart = true;
-    }
-    
-    private void PlaceDraggedBlocks()
-    {
-        if (!_hasHit)
-        {
-            return;
-        }
-
-        Vector3Int currentPosition =
-            _gridPosition;
-
-        if (!_hasDragStart)
-        {
-            return;
-        }
-
-        if (_dragDirection == Vector3Int.zero)
-        {
-            Vector3Int difference =
-                currentPosition -
-                _dragStartPosition;
-
-            if (difference == Vector3Int.zero)
-            {
-                return;
-            }
-
-            _dragDirection =
-                GetDominantDirection(
-                    difference
-                );
-        }
-
-        Vector3Int targetPosition =
-            GetDragTargetPosition(
-                currentPosition
-            );
-
-        if (_lastPlacedPosition ==
-            targetPosition)
-        {
-            return;
-        }
-
-        foreach (Vector3Int position in
-                 GetLinePositions(
-                     _lastPlacedPosition,
-                     targetPosition))
-        {
-            _gridPosition = position;
-
-            PlaceBlock();
-        }
-
-        _gridPosition =
-            targetPosition;
-
-        _lastPlacedPosition =
-            targetPosition;
-    }
-    
     private void EraseBlock()
     {
         if (_eraseTarget == null)
@@ -357,9 +660,14 @@ public class VoxelEditorTool : EditorTool
         );
     }
 
+    // =========================================================
+    // Prefab
+    // =========================================================
+
     private GameObject GetSelectedPrefab()
     {
-        Object selectedObject = Selection.activeObject;
+        Object selectedObject =
+            Selection.activeObject;
 
         if (selectedObject == null)
         {
@@ -371,12 +679,14 @@ public class VoxelEditorTool : EditorTool
             return null;
         }
 
-        if (!AssetDatabase.Contains(selectedGameObject))
+        if (!AssetDatabase.Contains(
+                selectedGameObject))
         {
             return null;
         }
 
-        if (PrefabUtility.GetPrefabAssetType(selectedGameObject) ==
+        if (PrefabUtility.GetPrefabAssetType(
+                selectedGameObject) ==
             PrefabAssetType.NotAPrefab)
         {
             return null;
@@ -385,21 +695,37 @@ public class VoxelEditorTool : EditorTool
         return selectedGameObject;
     }
 
+    // =========================================================
+    // プレビュー
+    // =========================================================
+
     private void DrawPlacementPreview()
     {
-        if (_toolMode != ToolMode.Pen ||
-            !_hasHit)
+        if (!_hasHit)
         {
             return;
+        }
+
+        Vector3Int previewPosition =
+            _gridPosition;
+
+        if (_isDragging &&
+            _hasDragStart &&
+            _hasDragPreview &&
+            _dragDirection !=
+            Vector3Int.zero)
+        {
+            previewPosition =
+                _dragPreviewPosition;
         }
 
         bool canPlace =
             _voxelWorld != null &&
             !_voxelWorld.IsBelowMinimumHeight(
-                _gridPosition
+                previewPosition
             ) &&
             !_voxelWorld.HasBlock(
-                _gridPosition
+                previewPosition
             );
 
         Handles.color =
@@ -409,7 +735,7 @@ public class VoxelEditorTool : EditorTool
 
         Vector3 worldPosition =
             VoxelGridUtility.GridToWorld(
-                _gridPosition
+                previewPosition
             );
 
         Handles.DrawWireCube(
@@ -418,9 +744,22 @@ public class VoxelEditorTool : EditorTool
             VoxelGridUtility.CellSize
         );
 
-        Handles.color = Color.white;
+        if (_isDragging &&
+            _hasDragStart &&
+            _hasDragPreview &&
+            _dragDirection !=
+            Vector3Int.zero)
+        {
+            DrawDragPreviewLine(
+                _dragStartPosition,
+                previewPosition
+            );
+        }
+
+        Handles.color =
+            Color.white;
     }
-    
+
     private void DrawErasePreview()
     {
         if (_toolMode != ToolMode.Eraser ||
@@ -445,9 +784,12 @@ public class VoxelEditorTool : EditorTool
         }
         else
         {
-            bounds = renderers[0].bounds;
+            bounds =
+                renderers[0].bounds;
 
-            for (int i = 1; i < renderers.Length; i++)
+            for (int i = 1;
+                 i < renderers.Length;
+                 i++)
             {
                 bounds.Encapsulate(
                     renderers[i].bounds
@@ -455,22 +797,94 @@ public class VoxelEditorTool : EditorTool
             }
         }
 
-        Handles.color = Color.red;
+        Handles.color =
+            Color.red;
 
         Handles.DrawWireCube(
             bounds.center,
             bounds.size
         );
 
-        Handles.color = Color.white;
+        Handles.color =
+            Color.white;
     }
+
+    private void DrawDragPreviewLine(
+        Vector3Int start,
+        Vector3Int end)
+    {
+        Vector3 startWorld =
+            VoxelGridUtility.GridToWorld(
+                start
+            );
+
+        Vector3 endWorld =
+            VoxelGridUtility.GridToWorld(
+                end
+            );
+
+        Handles.color =
+            new Color(
+                0.3f,
+                1f,
+                0.3f,
+                0.8f
+            );
+
+        Handles.DrawLine(
+            startWorld,
+            endWorld
+        );
+
+        bool canPlace =
+            _voxelWorld != null &&
+            !_voxelWorld.IsBelowMinimumHeight(
+                end
+            ) &&
+            !_voxelWorld.HasBlock(
+                end
+            );
+
+        Handles.color =
+            canPlace
+                ? new Color(
+                    0.3f,
+                    1f,
+                    0.3f,
+                    0.35f
+                )
+                : new Color(
+                    1f,
+                    0.2f,
+                    0.2f,
+                    0.35f
+                );
+
+        Handles.DrawWireCube(
+            endWorld,
+            Vector3.one *
+            VoxelGridUtility.CellSize
+        );
+
+        Handles.color =
+            Color.white;
+    }
+
+    // =========================================================
+    // GUI
+    // =========================================================
 
     private void DrawGUI()
     {
         Handles.BeginGUI();
 
         GUILayout.BeginArea(
-            new Rect(10, 10, 240, 190),
+            new Rect(
+                10,
+                10,
+                260,
+                230
+            ),
             "Voxel Editor",
             GUI.skin.window
         );
@@ -480,62 +894,145 @@ public class VoxelEditorTool : EditorTool
         GUILayout.BeginHorizontal();
 
         if (GUILayout.Toggle(
-                _toolMode == ToolMode.Pen,
+                _toolMode ==
+                ToolMode.Pen,
                 "Pen",
                 GUI.skin.button))
         {
-            _toolMode = ToolMode.Pen;
+            _toolMode =
+                ToolMode.Pen;
         }
 
         if (GUILayout.Toggle(
-                _toolMode == ToolMode.Eraser,
+                _toolMode ==
+                ToolMode.Eraser,
                 "Eraser",
                 GUI.skin.button))
         {
-            _toolMode = ToolMode.Eraser;
+            _toolMode =
+                ToolMode.Eraser;
         }
 
         GUILayout.EndHorizontal();
 
         GUILayout.Space(5);
 
-        GameObject prefab = GetSelectedPrefab();
+        GameObject prefab =
+            GetSelectedPrefab();
 
         if (prefab != null)
         {
-            GUILayout.Label($"Prefab : {prefab.name}");
+            GUILayout.Label(
+                $"Prefab : {prefab.name}"
+            );
         }
         else
         {
-            GUILayout.Label("Prefab : None");
+            GUILayout.Label(
+                "Prefab : None"
+            );
         }
 
         GUILayout.Space(5);
 
-        if (_toolMode == ToolMode.Pen)
+        // -------------------------
+        // ペンのドラッグ
+        // -------------------------
+
+        string penDragText =
+            _penDragEnabled
+                ? "ペンドラッグ : ON"
+                : "ペンドラッグ : OFF";
+
+        if (GUILayout.Button(
+                penDragText))
+        {
+            _penDragEnabled =
+                !_penDragEnabled;
+
+            CancelDrag();
+        }
+
+        // -------------------------
+        // 消しゴムのドラッグ
+        // -------------------------
+
+        string eraserDragText =
+            _eraserDragEnabled
+                ? "消しゴムドラッグ : ON"
+                : "消しゴムドラッグ : OFF";
+
+        if (GUILayout.Button(
+                eraserDragText))
+        {
+            _eraserDragEnabled =
+                !_eraserDragEnabled;
+
+            CancelDrag();
+        }
+
+        GUILayout.Space(5);
+
+        if (_toolMode ==
+            ToolMode.Pen)
         {
             if (_hasHit)
             {
-                GUILayout.Label("Placement Position");
-                GUILayout.Label($"X : {_gridPosition.x}");
-                GUILayout.Label($"Y : {_gridPosition.y}");
-                GUILayout.Label($"Z : {_gridPosition.z}");
+                GUILayout.Label(
+                    "Placement Position"
+                );
+
+                GUILayout.Label(
+                    $"X : {_gridPosition.x}"
+                );
+
+                GUILayout.Label(
+                    $"Y : {_gridPosition.y}"
+                );
+
+                GUILayout.Label(
+                    $"Z : {_gridPosition.z}"
+                );
             }
             else
             {
-                GUILayout.Label("No Hit");
+                GUILayout.Label(
+                    "No Hit"
+                );
             }
         }
         else
         {
-            GUILayout.Label("Eraser Mode");
+            GUILayout.Label(
+                "Eraser Mode"
+            );
         }
 
         GUILayout.EndArea();
 
         Handles.EndGUI();
     }
-    
+
+    private void CancelDrag()
+    {
+        _isDragging = false;
+
+        _hasDragStart = false;
+
+        _hasDragPreview = false;
+
+        _hasLastPlacedPosition = false;
+
+        _dragDirection =
+            Vector3Int.zero;
+
+        SceneView.RepaintAll();
+    }
+
+    // =========================================================
+    // 最低高度
+    // =========================================================
+
     private bool TryGetMinimumHeightPosition(
         Ray ray,
         out Vector3Int gridPosition)
@@ -558,7 +1055,8 @@ public class VoxelEditorTool : EditorTool
                 out float distance) ||
             distance < 0f)
         {
-            gridPosition = default;
+            gridPosition =
+                default;
 
             return false;
         }
@@ -578,11 +1076,15 @@ public class VoxelEditorTool : EditorTool
 
         return true;
     }
-    
-    private IEnumerable<Vector3Int> GetLinePositions(
-        Vector3Int start,
-        Vector3Int end)
-        
+
+    // =========================================================
+    // ライン
+    // =========================================================
+
+    private IEnumerable<Vector3Int>
+        GetLinePositions(
+            Vector3Int start,
+            Vector3Int end)
     {
         int deltaX =
             end.x - start.x;
@@ -603,10 +1105,13 @@ public class VoxelEditorTool : EditorTool
         if (steps == 0)
         {
             yield return start;
+
             yield break;
         }
 
-        for (int i = 1; i <= steps; i++)
+        for (int i = 1;
+             i <= steps;
+             i++)
         {
             float t =
                 (float)i / steps;
@@ -646,57 +1151,217 @@ public class VoxelEditorTool : EditorTool
         }
     }
     
-    private Vector3Int GetDominantDirection(
-        Vector3Int difference)
+    /// <summary>
+    /// カーソルが最後に置いたブロック上にあるかを判定する
+    /// </summary>
+    /// <param name="currentEvent"></param>
+    /// <returns> カーソルが最後に置いたブロック上にある = true </returns>
+    private bool IsCursorOverLastPlacedBlock(
+        Event currentEvent)
     {
-        int absX =
-            Mathf.Abs(difference.x);
-
-        int absY =
-            Mathf.Abs(difference.y);
-
-        int absZ =
-            Mathf.Abs(difference.z);
-
-        if (absX >= absY &&
-            absX >= absZ)
-        {
-            return new Vector3Int(
-                difference.x > 0 ? 1 : -1,
-                0,
-                0
+        Ray ray =
+            HandleUtility.GUIPointToWorldRay(
+                currentEvent.mousePosition
             );
+
+        if (!Physics.Raycast(
+                ray,
+                out RaycastHit hit))
+        {
+            return false;
         }
 
-        if (absY >= absX &&
-            absY >= absZ)
-        {
-            return new Vector3Int(
-                0,
-                difference.y > 0 ? 1 : -1,
-                0
+        GameObject hitObject =
+            hit.collider.gameObject;
+
+        GameObject rootObject =
+            PrefabUtility.GetOutermostPrefabInstanceRoot(
+                hitObject
             );
+
+        if (rootObject == null)
+        {
+            rootObject = hitObject;
         }
 
-        return new Vector3Int(
-            0,
-            0,
-            difference.z > 0 ? 1 : -1
-        );
+        Vector3Int hitGridPosition =
+            VoxelGridUtility.WorldToGrid(
+                rootObject.transform.position
+            );
+
+        return hitGridPosition ==
+               _lastPlacedPosition;
     }
     
-    private Vector3Int GetDragTargetPosition(
-        Vector3Int currentPosition)
+    /// <summary>
+    /// 次にブロックを置く場所を決める
+    /// </summary>
+    /// <param name="currentEvent"></param>
+    /// <returns>ブロックを置く座標</returns>
+    private Vector3Int GetNearestAdjacentPosition(
+        Event currentEvent)
     {
-        Vector3Int difference =
-            currentPosition -
-            _dragStartPosition;
+        Vector3Int center =
+            _lastPlacedPosition;
 
-        int distance =
-            difference.Dot(_dragDirection);
+        Vector3Int[] candidates =
+        {
+            center + Vector3Int.up,
+            center + Vector3Int.down,
+            center + Vector3Int.left,
+            center + Vector3Int.right,
+            center + Vector3Int.forward,
+            center + Vector3Int.back
+        };
 
-        return
-            _dragStartPosition +
-            _dragDirection * distance;
+        Vector2 mousePosition =
+            currentEvent.mousePosition;
+
+        SceneView sceneView =
+            SceneView.lastActiveSceneView;
+
+        if (sceneView == null ||
+            sceneView.camera == null)
+        {
+            return candidates[0];
+        }
+
+        Camera camera =
+            sceneView.camera;
+
+        Vector3Int bestPosition =
+            candidates[0];
+
+        float bestDistance =
+            float.MaxValue;
+
+        int bestPriority =
+            int.MaxValue;
+
+        for (int i = 0;
+             i < candidates.Length;
+             i++)
+        {
+            Vector3 worldPosition =
+                VoxelGridUtility.GridToWorld(
+                    candidates[i]
+                );
+
+            Vector2 screenPosition =
+                HandleUtility.WorldToGUIPoint(
+                    worldPosition
+                );
+
+            float distance =
+                (screenPosition -
+                 mousePosition).sqrMagnitude;
+
+            int priority =
+                GetAdjacentPriority(
+                    candidates[i] -
+                    center,
+                    camera
+                );
+
+            if (distance < bestDistance - 0.01f)
+            {
+                bestDistance =
+                    distance;
+
+                bestPosition =
+                    candidates[i];
+
+                bestPriority =
+                    priority;
+
+                continue;
+            }
+
+            // 距離がほぼ同じ場合は
+            // 優先順位を使用する
+            if (Mathf.Abs(
+                    distance -
+                    bestDistance) <= 0.01f &&
+                priority < bestPriority)
+            {
+                bestPosition =
+                    candidates[i];
+
+                bestPriority =
+                    priority;
+            }
+        }
+
+        return bestPosition;
+    }
+    
+    /// <summary>
+    /// ブロックを置く方向の優先順位
+    /// </summary>
+    /// <param name="direction"></param>
+    /// <param name="camera">現在のカメラ</param>
+    /// <returns></returns>
+    private int GetAdjacentPriority(
+        Vector3Int direction,
+        Camera camera)
+    {
+        Vector3 cameraForward =
+            camera.transform.forward;
+
+        Vector3 cameraPosition =
+            camera.transform.position;
+
+        Vector3 centerWorld =
+            VoxelGridUtility.GridToWorld(
+                _lastPlacedPosition
+            );
+
+        Vector3 candidateWorld =
+            centerWorld +
+            new Vector3(
+                direction.x,
+                direction.y,
+                direction.z
+            ) *
+            VoxelGridUtility.CellSize;
+
+        Vector3 toCandidate =
+            candidateWorld -
+            centerWorld;
+
+        // カメラに近い方向を「手前」とする
+        float depth =
+            Vector3.Dot(
+                toCandidate,
+                cameraForward
+            );
+
+        // カメラ方向に近いものほど優先
+        if (depth < -0.1f)
+        {
+            return 0;
+        }
+
+        // 上
+        if (direction == Vector3Int.up)
+        {
+            return 1;
+        }
+
+        // 左右
+        if (direction == Vector3Int.left ||
+            direction == Vector3Int.right)
+        {
+            return 2;
+        }
+
+        // 下
+        if (direction == Vector3Int.down)
+        {
+            return 3;
+        }
+
+        // 奥
+        return 4;
     }
 }
