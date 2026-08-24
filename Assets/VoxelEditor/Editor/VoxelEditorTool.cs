@@ -6,6 +6,7 @@ using UnityEngine;
 public class VoxelEditorTool : EditorTool
 {
     private Vector3 _hitPosition;
+    private Vector3Int _gridPosition;
     private bool _hasHit;
 
     public override GUIContent toolbarIcon
@@ -20,13 +21,19 @@ public class VoxelEditorTool : EditorTool
     {
         Event currentEvent = Event.current;
 
-        // Scene View上のマウス位置からRayを作成
         Ray ray = HandleUtility.GUIPointToWorldRay(currentEvent.mousePosition);
 
-        // Scene上のColliderにRayを飛ばす
         if (Physics.Raycast(ray, out RaycastHit hit))
         {
             _hitPosition = hit.point;
+
+            // Rayが当たった面の法線方向へ1ブロック分移動
+            Vector3 placementPosition =
+                hit.point + hit.normal * (VoxelGridUtility.CellSize * 0.5f);
+
+            _gridPosition =
+                VoxelGridUtility.WorldToGrid(placementPosition);
+
             _hasHit = true;
         }
         else
@@ -34,26 +41,47 @@ public class VoxelEditorTool : EditorTool
             _hasHit = false;
         }
 
-        // 左クリックされたか
+        DrawPlacementPreview();
+        DrawGUI();
+
         if (currentEvent.type == EventType.MouseDown &&
             currentEvent.button == 0 &&
             !currentEvent.alt)
         {
             if (_hasHit)
             {
-                Debug.Log($"Hit Position: {_hitPosition}");
+                Debug.Log(
+                    $"Placement Grid Position: {_gridPosition}"
+                );
             }
 
             currentEvent.Use();
         }
 
-        DrawGUI();
-
-        // Scene Viewを再描画
         if (currentEvent.type == EventType.MouseMove)
         {
             SceneView.RepaintAll();
         }
+    }
+
+    private void DrawPlacementPreview()
+    {
+        if (!_hasHit)
+        {
+            return;
+        }
+
+        Vector3 worldPosition =
+            VoxelGridUtility.GridToWorld(_gridPosition);
+
+        Handles.color = Color.green;
+
+        Handles.DrawWireCube(
+            worldPosition,
+            Vector3.one * VoxelGridUtility.CellSize
+        );
+
+        Handles.color = Color.white;
     }
 
     private void DrawGUI()
@@ -61,16 +89,26 @@ public class VoxelEditorTool : EditorTool
         Handles.BeginGUI();
 
         GUILayout.BeginArea(
-            new Rect(10, 10, 220, 80),
+            new Rect(10, 10, 240, 120),
             "Voxel Editor",
             GUI.skin.window
         );
 
         if (_hasHit)
         {
-            GUILayout.Label($"X : {_hitPosition.x:F2}");
-            GUILayout.Label($"Y : {_hitPosition.y:F2}");
-            GUILayout.Label($"Z : {_hitPosition.z:F2}");
+            GUILayout.Label("Placement Position");
+
+            GUILayout.Label(
+                $"X : {_gridPosition.x}"
+            );
+
+            GUILayout.Label(
+                $"Y : {_gridPosition.y}"
+            );
+
+            GUILayout.Label(
+                $"Z : {_gridPosition.z}"
+            );
         }
         else
         {
