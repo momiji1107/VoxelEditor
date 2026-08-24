@@ -52,7 +52,13 @@ public class VoxelEditorTool : EditorTool
         ToolMode.Pen;
 
     private GameObject _eraseTarget;
+    private Vector3Int _lastErasedPosition;
+    private bool _hasLastErasedPosition;
 
+    
+    /// <summary>
+    /// ツールバーの表示
+    /// </summary>
     public override GUIContent toolbarIcon
     {
         get
@@ -111,7 +117,9 @@ public class VoxelEditorTool : EditorTool
             {
                 if (_eraserDragEnabled)
                 {
-                    EraseBlock();
+                    EraseDraggedBlocks(
+                        currentEvent
+                    );
                 }
             }
 
@@ -214,13 +222,15 @@ public class VoxelEditorTool : EditorTool
         if (_eraserDragEnabled)
         {
             _isDragging = true;
+
+            StartEraserDrag();
         }
         else
         {
             _isDragging = false;
-        }
 
-        EraseBlock();
+            EraseBlock();
+        }
     }
 
     private void EndMouseDrag()
@@ -228,6 +238,8 @@ public class VoxelEditorTool : EditorTool
         _isDragging = false;
 
         _hasLastPlacedPosition = false;
+        
+        _hasLastErasedPosition = false;
 
         _hasDragStart = false;
 
@@ -437,6 +449,75 @@ public class VoxelEditorTool : EditorTool
             nextPosition;
 
         _hasDragPreview = true;
+
+        SceneView.RepaintAll();
+    }
+    
+    // =========================================================
+    // 消しゴム
+    // =========================================================
+    
+    private void StartEraserDrag()
+    {
+        if (_eraseTarget == null)
+        {
+            _isDragging = false;
+
+            return;
+        }
+
+        if (_voxelWorld == null)
+        {
+            _isDragging = false;
+
+            return;
+        }
+
+        Vector3Int gridPosition =
+            VoxelGridUtility.WorldToGrid(
+                _eraseTarget.transform.position
+            );
+
+        _lastErasedPosition =
+            gridPosition;
+
+        _hasLastErasedPosition = true;
+
+        EraseBlock();
+
+        SceneView.RepaintAll();
+    }
+    
+    private void EraseDraggedBlocks(
+        Event currentEvent)
+    {
+        if (!_hasLastErasedPosition)
+        {
+            return;
+        }
+
+        if (_eraseTarget == null)
+        {
+            return;
+        }
+
+        Vector3Int currentPosition =
+            VoxelGridUtility.WorldToGrid(
+                _eraseTarget.transform.position
+            );
+
+        // まだ同じブロック上にいる
+        if (currentPosition ==
+            _lastErasedPosition)
+        {
+            return;
+        }
+
+        // 新しくカーソルが乗ったブロックを削除
+        EraseBlock();
+
+        _lastErasedPosition =
+            currentPosition;
 
         SceneView.RepaintAll();
     }
@@ -917,6 +998,50 @@ public class VoxelEditorTool : EditorTool
 
         GUILayout.Space(5);
 
+        // -------------------------
+        // ペンのドラッグ
+        // -------------------------
+
+        if (_toolMode == ToolMode.Pen)
+        {
+            string penDragText =
+                _penDragEnabled
+                    ? "ペンドラッグ : ON"
+                    : "ペンドラッグ : OFF";
+
+            if (GUILayout.Button(
+                    penDragText))
+            {
+                _penDragEnabled =
+                    !_penDragEnabled;
+
+                CancelDrag();
+            }
+        }
+
+        // -------------------------
+        // 消しゴムのドラッグ
+        // -------------------------
+
+        if (_toolMode == ToolMode.Eraser)
+        {
+            string eraserDragText =
+                _eraserDragEnabled
+                    ? "消しゴムドラッグ : ON"
+                    : "消しゴムドラッグ : OFF";
+
+            if (GUILayout.Button(
+                    eraserDragText))
+            {
+                _eraserDragEnabled =
+                    !_eraserDragEnabled;
+
+                CancelDrag();
+            }
+        }
+        
+        GUILayout.Space(5);
+
         GameObject prefab =
             GetSelectedPrefab();
 
@@ -935,44 +1060,6 @@ public class VoxelEditorTool : EditorTool
 
         GUILayout.Space(5);
 
-        // -------------------------
-        // ペンのドラッグ
-        // -------------------------
-
-        string penDragText =
-            _penDragEnabled
-                ? "ペンドラッグ : ON"
-                : "ペンドラッグ : OFF";
-
-        if (GUILayout.Button(
-                penDragText))
-        {
-            _penDragEnabled =
-                !_penDragEnabled;
-
-            CancelDrag();
-        }
-
-        // -------------------------
-        // 消しゴムのドラッグ
-        // -------------------------
-
-        string eraserDragText =
-            _eraserDragEnabled
-                ? "消しゴムドラッグ : ON"
-                : "消しゴムドラッグ : OFF";
-
-        if (GUILayout.Button(
-                eraserDragText))
-        {
-            _eraserDragEnabled =
-                !_eraserDragEnabled;
-
-            CancelDrag();
-        }
-
-        GUILayout.Space(5);
-
         if (_toolMode ==
             ToolMode.Pen)
         {
@@ -983,15 +1070,7 @@ public class VoxelEditorTool : EditorTool
                 );
 
                 GUILayout.Label(
-                    $"X : {_gridPosition.x}"
-                );
-
-                GUILayout.Label(
-                    $"Y : {_gridPosition.y}"
-                );
-
-                GUILayout.Label(
-                    $"Z : {_gridPosition.z}"
+                    $"(X,Y,Z) = ({_gridPosition.x}, {_gridPosition.y}, {_gridPosition.z})"
                 );
             }
             else
