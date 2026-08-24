@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEditor;
 using UnityEditor.EditorTools;
 using UnityEngine;
@@ -15,6 +16,11 @@ public class VoxelEditorTool : EditorTool
     private Vector3 _hitPosition;
     private Vector3Int _gridPosition;
     private bool _hasHit;
+    
+    private bool _isDragging;
+    private Vector3Int _lastPlacedPosition;
+    private bool _hasLastPlacedPosition;
+    
     private ToolMode _toolMode = ToolMode.Pen;
     private GameObject _eraseTarget;
 
@@ -49,6 +55,9 @@ public class VoxelEditorTool : EditorTool
             currentEvent.button == 0 &&
             !currentEvent.alt)
         {
+            _isDragging = true;
+            _hasLastPlacedPosition = false;
+
             if (_toolMode == ToolMode.Pen)
             {
                 if (_hasHit)
@@ -62,6 +71,33 @@ public class VoxelEditorTool : EditorTool
             }
 
             currentEvent.Use();
+        }
+        
+        if (currentEvent.type == EventType.MouseDrag &&
+            currentEvent.button == 0 &&
+            _isDragging &&
+            !currentEvent.alt)
+        {
+            if (_toolMode == ToolMode.Pen)
+            {
+                if (_hasHit)
+                {
+                    PlaceDraggedBlocks();
+                }
+            }
+            else
+            {
+                EraseBlock();
+            }
+
+            currentEvent.Use();
+        }
+        
+        if (currentEvent.type == EventType.MouseUp &&
+            currentEvent.button == 0)
+        {
+            _isDragging = false;
+            _hasLastPlacedPosition = false;
         }
 
         if (currentEvent.type == EventType.MouseMove)
@@ -192,6 +228,50 @@ public class VoxelEditorTool : EditorTool
         Debug.Log(
             $"Placed: {prefab.name} at {_gridPosition}"
         );
+    }
+    
+    private void PlaceDraggedBlocks()
+    {
+        if (!_hasHit)
+        {
+            return;
+        }
+
+        Vector3Int currentPosition =
+            _gridPosition;
+
+        if (!_hasLastPlacedPosition)
+        {
+            PlaceBlock();
+
+            _lastPlacedPosition =
+                currentPosition;
+
+            _hasLastPlacedPosition = true;
+
+            return;
+        }
+
+        if (_lastPlacedPosition ==
+            currentPosition)
+        {
+            return;
+        }
+
+        foreach (Vector3Int position in
+                 GetLinePositions(
+                     _lastPlacedPosition,
+                     currentPosition))
+        {
+            _gridPosition = position;
+
+            PlaceBlock();
+        }
+
+        _gridPosition = currentPosition;
+
+        _lastPlacedPosition =
+            currentPosition;
     }
     
     private void EraseBlock()
@@ -442,5 +522,72 @@ public class VoxelEditorTool : EditorTool
             );
 
         return true;
+    }
+    
+    private IEnumerable<Vector3Int> GetLinePositions(
+        Vector3Int start,
+        Vector3Int end)
+        
+    {
+        int deltaX =
+            end.x - start.x;
+
+        int deltaY =
+            end.y - start.y;
+
+        int deltaZ =
+            end.z - start.z;
+
+        int steps =
+            Mathf.Max(
+                Mathf.Abs(deltaX),
+                Mathf.Abs(deltaY),
+                Mathf.Abs(deltaZ)
+            );
+
+        if (steps == 0)
+        {
+            yield return start;
+            yield break;
+        }
+
+        for (int i = 1; i <= steps; i++)
+        {
+            float t =
+                (float)i / steps;
+
+            int x =
+                Mathf.RoundToInt(
+                    Mathf.Lerp(
+                        start.x,
+                        end.x,
+                        t
+                    )
+                );
+
+            int y =
+                Mathf.RoundToInt(
+                    Mathf.Lerp(
+                        start.y,
+                        end.y,
+                        t
+                    )
+                );
+
+            int z =
+                Mathf.RoundToInt(
+                    Mathf.Lerp(
+                        start.z,
+                        end.z,
+                        t
+                    )
+                );
+
+            yield return new Vector3Int(
+                x,
+                y,
+                z
+            );
+        }
     }
 }
