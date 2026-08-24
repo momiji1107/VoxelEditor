@@ -10,11 +10,9 @@ public class VoxelPrefabDatabase : ScriptableObject
     [SerializeField]
     private List<GameObject> _prefabs = new();
 
-    public IReadOnlyList<GameObject> Prefabs =>
-        _prefabs;
+    public IReadOnlyList<GameObject> Prefabs => _prefabs;
 
-    public void AddPrefab(
-        GameObject prefab)
+    public void AddPrefab(GameObject prefab)
     {
         if (prefab == null)
         {
@@ -29,8 +27,7 @@ public class VoxelPrefabDatabase : ScriptableObject
         _prefabs.Add(prefab);
     }
 
-    public void RemovePrefab(
-        GameObject prefab)
+    public void RemovePrefab(GameObject prefab)
     {
         if (prefab == null)
         {
@@ -40,10 +37,8 @@ public class VoxelPrefabDatabase : ScriptableObject
         _prefabs.Remove(prefab);
     }
 
-    public bool Contains(
-        GameObject prefab)
+    public bool Contains(GameObject prefab)
     {
-        return prefab != null &&
-               _prefabs.Contains(prefab);
+        return prefab != null && _prefabs.Contains(prefab);
     }
 }
