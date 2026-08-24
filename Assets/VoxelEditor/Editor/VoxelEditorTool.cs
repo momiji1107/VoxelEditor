@@ -5,6 +5,7 @@ using UnityEngine;
 [EditorTool("Voxel Editor")]
 public class VoxelEditorTool : EditorTool
 {
+    private VoxelWorld _voxelWorld;
     private Vector3 _hitPosition;
     private Vector3Int _gridPosition;
     private bool _hasHit;
@@ -19,6 +20,8 @@ public class VoxelEditorTool : EditorTool
 
     public override void OnToolGUI(EditorWindow window)
     {
+        _voxelWorld = FindFirstObjectByType<VoxelWorld>();
+        
         Event currentEvent = Event.current;
 
         Ray ray = HandleUtility.GUIPointToWorldRay(currentEvent.mousePosition);
@@ -85,6 +88,17 @@ public class VoxelEditorTool : EditorTool
         Undo.RegisterCreatedObjectUndo(
             block,
             "Place Voxel Block"
+        );
+        
+        Undo.RecordObject(
+            _voxelWorld,
+            "Add Voxel Block"
+        );
+
+        _voxelWorld.AddBlock(
+            _gridPosition,
+            prefab,
+            block.transform.rotation
         );
 
         Debug.Log(
