@@ -92,7 +92,7 @@ If the repository uses Git LFS, Git LFS must also be installed.
 
 5. Enter the following Git URL:
 
-   `https://github.com/momiji1107/VoxelEditor.git`
+   `https://github.com/momiji1107/VoxelEditor.git?path=/Assets/VoxelEditor`
 
 6. Click `Add`.
 
@@ -497,7 +497,7 @@ Voxel Editorがプロジェクトにインポートされます。
 
 5. 以下のGit URLを入力します。
 
-   `https://github.com/momiji1107/VoxelEditor.git`
+   `https://github.com/momiji1107/VoxelEditor.git?path=/Assets/VoxelEditor`
 
 6. `Add`をクリックします。
 
