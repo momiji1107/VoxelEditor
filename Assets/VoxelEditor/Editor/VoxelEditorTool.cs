@@ -205,7 +205,11 @@ namespace VoxelEditor.Editor
                 !currentEvent.alt)
             {
                 StartMouseDrag(currentEvent);
-                currentEvent.Use();
+
+                if (_isDragging)
+                {
+                    currentEvent.Use();
+                }
             }
 
             // -------------------------
@@ -214,7 +218,8 @@ namespace VoxelEditor.Editor
             // -------------------------
 
             if (currentEvent.type == EventType.MouseUp &&
-                currentEvent.button == 0)
+                currentEvent.button == 0 &&
+                _isDragging)
             {
                 EndMouseDrag();
                 currentEvent.Use();
