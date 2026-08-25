@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using UnityEditor;
 using UnityEditor.EditorTools;
 using UnityEngine;
+using UnityEngine.Rendering;
 
 [EditorTool("Voxel Editor")]
 public class VoxelEditorTool : EditorTool
@@ -882,7 +883,11 @@ public class VoxelEditorTool : EditorTool
         float halfSize = totalSize * 0.5f;
 
         Vector3 start = center - new Vector3(halfSize, 0f, halfSize);
+        
+        CompareFunction previousZTest = Handles.zTest;
+        Color previousColor = Handles.color;
 
+        Handles.zTest = CompareFunction.LessEqual;
         Handles.color = GridColor;
 
         for (int i = 0; i <= _gridSize; i++)
@@ -899,7 +904,8 @@ public class VoxelEditorTool : EditorTool
             Handles.DrawAAPolyLine(GridLineWidth, zStart, zEnd);
         }
 
-        Handles.color = Color.white;
+        Handles.zTest = previousZTest;
+        Handles.color = previousColor;
     }
 
     /// <summary>
@@ -1084,7 +1090,7 @@ public class VoxelEditorTool : EditorTool
 
         if (_toolMode == ToolMode.Pen)
         {
-            if (GUILayout.Button(_penDragEnabled ? "ペンドラッグ : ON" : "ペンドラッグ : OFF"))
+            if (GUILayout.Button(_penDragEnabled ? "Pen Drag : ON" : "Pen Drag : OFF"))
             {
                 _penDragEnabled = !_penDragEnabled;
                 CancelDrag();
@@ -1092,7 +1098,7 @@ public class VoxelEditorTool : EditorTool
         }
         else
         {
-            if (GUILayout.Button(_eraserDragEnabled ? "消しゴムドラッグ : ON" : "消しゴムドラッグ : OFF"))
+            if (GUILayout.Button(_eraserDragEnabled ? "Eraser Drag : ON" : "Eraser Drag : OFF"))
             {
                 _eraserDragEnabled = !_eraserDragEnabled;
                 CancelDrag();
@@ -1155,7 +1161,7 @@ public class VoxelEditorTool : EditorTool
     {
         if (_prefabDatabases.Count == 0)
         {
-            EditorGUILayout.HelpBox("VoxelPrefabDatabase が見つかりません。", MessageType.Warning);
+            EditorGUILayout.HelpBox("VoxelPrefabDatabase is not found. / VoxelPrefabDatabase が見つかりません。", MessageType.Warning);
             return;
         }
 
@@ -1198,13 +1204,13 @@ public class VoxelEditorTool : EditorTool
     {
         if (_prefabDatabase == null)
         {
-            EditorGUILayout.HelpBox("Prefab Database が選択されていません。", MessageType.Warning);
+            EditorGUILayout.HelpBox("Prefab Database is not selected. / Prefab Database が選択されていません。", MessageType.Warning);
             return;
         }
 
         if (_prefabDatabase.Prefabs.Count == 0)
         {
-            EditorGUILayout.HelpBox("Prefabが登録されていません。", MessageType.Info);
+            EditorGUILayout.HelpBox("Prefab is not registered. / Prefabが登録されていません。", MessageType.Info);
             return;
         }
 

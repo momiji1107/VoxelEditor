@@ -34,7 +34,7 @@ public class VoxelPrefabDatabaseEditor
         EditorGUILayout.Space(10);
 
         EditorGUILayout.LabelField(
-            $"登録Prefab数 : {database.Prefabs.Count}"
+            $"Number of registered Prefabs / 登録Prefab数 : {database.Prefabs.Count}"
         );
 
         EditorGUILayout.Space(5);
