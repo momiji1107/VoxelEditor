@@ -49,6 +49,7 @@ public class VoxelEditorTool : EditorTool
     private GameObject _eraseTarget;
     private Vector3Int _lastErasedPosition;
     private bool _hasLastErasedPosition;
+
     private const float GuiWidth = 200f;
     private const float GuiMargin = 10f;
 
@@ -80,16 +81,21 @@ public class VoxelEditorTool : EditorTool
     // Prefab一覧
     // =========================================================
 
+    private List<VoxelPrefabDatabase> _prefabDatabases = new();
     private VoxelPrefabDatabase _prefabDatabase;
+    private int _selectedDatabaseIndex;
     private GameObject _selectedPrefab;
     private readonly Dictionary<GameObject, Texture2D> _prefabPreviews = new();
+    private GUIStyle _prefabLabelStyle;
+
     private const float PrefabItemHeight = 80f;
     private const float PrefabItemSpacing = 5f;
     private const float PrefabPreviewPadding = 5f;
     private const float PrefabLabelHeight = 15f;
     private const float PrefabSelectionBorderWidth = 3f;
+    private const float DatabaseSelectorHeight = 22f;
     private const int PrefabColumns = 2;
-    
+
     public override GUIContent toolbarIcon
     {
         get { return new GUIContent("V"); }
@@ -131,7 +137,7 @@ public class VoxelEditorTool : EditorTool
         {
             UpdateEraseTarget(currentEvent);
         }
-        
+
         // -------------------------
         // Repaint while moving the cursor
         // カーソル移動中に再描画
@@ -209,14 +215,14 @@ public class VoxelEditorTool : EditorTool
             EndMouseDrag();
             currentEvent.Use();
         }
-        
+
     }
-    
+
     // =========================================================
     // Pen Operation
     // ペン操作
     // =========================================================
-    
+
     /// <summary>
     /// Gets the grid position where the block will be placed from the object pointed to by the cursor.
     /// カーソルが指している対象からブロックを配置するグリッド位置を取得します。
@@ -248,7 +254,7 @@ public class VoxelEditorTool : EditorTool
 
         _hasHit = false;
     }
-    
+
     // -------------------------
     // Place block
     // ブロック配置
@@ -271,7 +277,8 @@ public class VoxelEditorTool : EditorTool
 
         if (_voxelWorld.IsBelowMinimumHeight(_gridPosition))
         {
-            Debug.LogWarning($"Voxel Editor: It cannot be placed below the minimum altitude ({_voxelWorld.MinimumHeight}). / Voxel Editor: 最低高度(Minimum Height) ({_voxelWorld.MinimumHeight}) より下には配置できません。");
+            Debug.LogWarning(
+                $"Voxel Editor: It cannot be placed below the minimum altitude ({_voxelWorld.MinimumHeight}). / Voxel Editor: 最低高度(Minimum Height) ({_voxelWorld.MinimumHeight}) より下には配置できません。");
             return;
         }
 
@@ -294,7 +301,7 @@ public class VoxelEditorTool : EditorTool
 
         _voxelWorld.AddBlock(_gridPosition, prefab, block.transform.rotation);
     }
-    
+
     /// <summary>
     /// Gets the grid position where the ray intersects the minimum height plane.
     /// レイと最低高度の平面が交差するグリッド位置を取得します。
@@ -474,7 +481,7 @@ public class VoxelEditorTool : EditorTool
             EraseBlock();
         }
     }
-    
+
     // =========================================================
     // Pen Drag
     // ペンドラッグ
@@ -650,7 +657,8 @@ public class VoxelEditorTool : EditorTool
         Vector3 cameraPosition = camera.transform.position;
         Vector3 centerWorld = VoxelGridUtility.GridToWorld(_lastPlacedPosition);
 
-        Vector3 candidateWorld = centerWorld + new Vector3(direction.x, direction.y, direction.z) * VoxelGridUtility.CellSize;
+        Vector3 candidateWorld =
+            centerWorld + new Vector3(direction.x, direction.y, direction.z) * VoxelGridUtility.CellSize;
         Vector3 toCandidate = candidateWorld - centerWorld;
 
         // カメラに近い方向を手前として扱う
@@ -759,7 +767,7 @@ public class VoxelEditorTool : EditorTool
         _dragDirection = Vector3Int.zero;
         SceneView.RepaintAll();
     }
-    
+
     // -------------------------
     // Cancel drag
     // ドラッグをキャンセル
@@ -1034,7 +1042,7 @@ public class VoxelEditorTool : EditorTool
 
         Handles.color = Color.white;
     }
-    
+
     // =========================================================
     // GUI
     // GUI
@@ -1114,7 +1122,8 @@ public class VoxelEditorTool : EditorTool
             GUILayout.Space(5);
 
             GUILayout.Label("Prefab", EditorStyles.boldLabel);
-            GUILayout.Label(_selectedPrefab != null ? $"選択中 : {_selectedPrefab.name}" : "選択中 : None");
+            DrawPrefabDatabaseSelector();
+            GUILayout.Label(_selectedPrefab != null ? $"selected : {_selectedPrefab.name}" : "selected : None");
 
             Rect lastRect = GUILayoutUtility.GetLastRect();
 
@@ -1137,6 +1146,47 @@ public class VoxelEditorTool : EditorTool
     // Prefab List GUI
     // Prefab一覧GUI
     // -------------------------
+    
+    /// <summary>
+    /// Draws the database selection field.
+    /// データベース選択欄を表示します。
+    /// </summary>
+    private void DrawPrefabDatabaseSelector()
+    {
+        if (_prefabDatabases.Count == 0)
+        {
+            EditorGUILayout.HelpBox("VoxelPrefabDatabase が見つかりません。", MessageType.Warning);
+            return;
+        }
+
+        string[] databaseNames = new string[_prefabDatabases.Count];
+
+        for (int i = 0; i < _prefabDatabases.Count; i++)
+        {
+            databaseNames[i] = _prefabDatabases[i].name;
+        }
+
+        int newIndex = EditorGUILayout.Popup(
+            "Database",
+            _selectedDatabaseIndex,
+            databaseNames,
+            GUILayout.Height(DatabaseSelectorHeight)
+        );
+
+        if (newIndex == _selectedDatabaseIndex)
+        {
+            return;
+        }
+
+        _selectedDatabaseIndex = newIndex;
+        _prefabDatabase = _prefabDatabases[_selectedDatabaseIndex];
+        _selectedPrefab = null;
+        _prefabScrollPosition = Vector2.zero;
+        _prefabPreviews.Clear();
+        _prefabListHash = 0;
+
+        SceneView.RepaintAll();
+    }
 
     /// <summary>
     /// Draws the Prefab selection list with a scroll view.
@@ -1148,7 +1198,7 @@ public class VoxelEditorTool : EditorTool
     {
         if (_prefabDatabase == null)
         {
-            EditorGUILayout.HelpBox("VoxelPrefabDatabase が見つかりません。", MessageType.Warning);
+            EditorGUILayout.HelpBox("Prefab Database が選択されていません。", MessageType.Warning);
             return;
         }
 
@@ -1254,7 +1304,13 @@ public class VoxelEditorTool : EditorTool
             PrefabLabelHeight
         );
 
-        GUI.Label(labelRect, prefab.name, EditorStyles.centeredGreyMiniLabel);
+        if (_prefabLabelStyle == null)
+        {
+            _prefabLabelStyle = new GUIStyle(EditorStyles.centeredGreyMiniLabel);
+            _prefabLabelStyle.normal.textColor = Color.white;
+        }
+
+        GUI.Label(labelRect, prefab.name, _prefabLabelStyle);
 
         if (selected)
         {
@@ -1280,42 +1336,88 @@ public class VoxelEditorTool : EditorTool
 
         GUI.color = previousColor;
     }
-    
+
     // =========================================================
     // Prefab Database
     // Prefabデータベース
     // =========================================================
 
     /// <summary>
-    /// Loads the VoxelPrefabDatabase from the project.
-    /// プロジェクトからVoxelPrefabDatabaseを読み込みます。
+    /// Loads all VoxelPrefabDatabase assets.
+    /// すべてのVoxelPrefabDatabaseアセットを読み込みます。
     /// </summary>
     private void LoadPrefabDatabase()
     {
         string[] guids = AssetDatabase.FindAssets("t:VoxelPrefabDatabase");
 
-        if (guids.Length == 0)
+        List<VoxelPrefabDatabase> databases = new();
+
+        foreach (string guid in guids)
         {
-            _prefabDatabase = null;
+            string path = AssetDatabase.GUIDToAssetPath(guid);
+            VoxelPrefabDatabase database = AssetDatabase.LoadAssetAtPath<VoxelPrefabDatabase>(path);
+
+            if (database != null)
+            {
+                databases.Add(database);
+            }
+        }
+
+        databases.Sort((a, b) => string.Compare(a.name, b.name, System.StringComparison.Ordinal));
+
+        bool databaseChanged = _prefabDatabases.Count != databases.Count;
+
+        if (!databaseChanged)
+        {
+            for (int i = 0; i < databases.Count; i++)
+            {
+                if (_prefabDatabases[i] != databases[i])
+                {
+                    databaseChanged = true;
+                    break;
+                }
+            }
+        }
+
+        if (databaseChanged)
+        {
+            _prefabDatabases = databases;
+
+            if (_prefabDatabases.Count == 0)
+            {
+                _prefabDatabase = null;
+                _selectedDatabaseIndex = 0;
+                _selectedPrefab = null;
+                _prefabPreviews.Clear();
+                _prefabListHash = 0;
+                return;
+            }
+
+            _selectedDatabaseIndex = Mathf.Clamp(
+                _selectedDatabaseIndex,
+                0,
+                _prefabDatabases.Count - 1
+            );
+
+            _prefabDatabase = _prefabDatabases[_selectedDatabaseIndex];
+            _selectedPrefab = null;
             _prefabPreviews.Clear();
             _prefabListHash = 0;
+
+            SceneView.RepaintAll();
+        }
+
+        if (_prefabDatabases.Count == 0)
+        {
             return;
         }
 
-        string path = AssetDatabase.GUIDToAssetPath(guids[0]);
-        VoxelPrefabDatabase database = AssetDatabase.LoadAssetAtPath<VoxelPrefabDatabase>(path);
-
-        if (_prefabDatabase != database)
+        if (_selectedDatabaseIndex >= _prefabDatabases.Count)
         {
-            _prefabDatabase = database;
-            _prefabPreviews.Clear();
-            _prefabListHash = 0;
+            _selectedDatabaseIndex = 0;
         }
 
-        if (_prefabDatabase == null)
-        {
-            return;
-        }
+        _prefabDatabase = _prefabDatabases[_selectedDatabaseIndex];
 
         int listHash = 17;
 
@@ -1324,8 +1426,6 @@ public class VoxelEditorTool : EditorTool
             listHash = listHash * 31 + (prefab != null ? prefab.GetInstanceID() : 0);
         }
 
-        // Prefab一覧が変更された場合はプレビューキャッシュを更新する
-        // Refresh the preview cache when the Prefab list changes
         if (_prefabListHash != listHash)
         {
             _prefabListHash = listHash;

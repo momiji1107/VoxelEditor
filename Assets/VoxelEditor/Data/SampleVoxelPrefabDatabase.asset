@@ -10,7 +10,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: b11815487f13b45f3b175d9fbc404ed6, type: 3}
-  m_Name: VoxelPrefabDatabase
+  m_Name: SampleVoxelPrefabDatabase
   m_EditorClassIdentifier: Assembly-CSharp::VoxelPrefabDatabase
   _prefabs:
   - {fileID: 8287137217709261135, guid: 9ca0137d547e449908b83cedb5e79535, type: 3}
