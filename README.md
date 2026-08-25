@@ -68,7 +68,7 @@ The Voxel Editor will be imported into the project.
 
 ## Method 3: Install from a Git URL
 
-You can install Voxel Editor directly from a Git repository using the Unity Package Manager.
+You can install Voxel Editor directly from a Git repository using the `Unity Package Manager`.
 
 ### Requirements
 
@@ -82,19 +82,19 @@ If the repository uses Git LFS, Git LFS must also be installed.
 
 2. Open:
 
-   Window > Package Manager
+   `Window > Package Manager`
 
-3. Click the + button in the upper-left corner of the Package Manager window.
+3. Click the `+` button in the upper-left corner of the Package Manager window.
 
 4. Select:
 
-   Add package from git URL
+   `Add package from git URL`
 
 5. Enter the following Git URL:
 
-   https://github.com/momiji1107/VoxelEditor.git
+   `https://github.com/momiji1107/VoxelEditor.git`
 
-6. Click Add.
+6. Click `Add`.
 
 Unity will download the Voxel Editor package from the Git repository and install it automatically.
 
@@ -102,7 +102,7 @@ Unity will download the Voxel Editor package from the Git repository and install
 
 If Unity cannot find Git, the installation may fail with an error such as:
 
-No 'git' executable was found
+`No 'git' executable was found`
 
 For more information about installing packages from Git URLs, see the Unity documentation:
 
@@ -473,7 +473,7 @@ Voxel Editorがプロジェクトにインポートされます。
 
 ## 方法3: Git URLからインストールする
 
-Unity Package Managerを使用すると、GitリポジトリからVoxel Editorを直接インストールできます。
+`Unity Package Manager`を使用すると、GitリポジトリからVoxel Editorを直接インストールできます。
 
 ### 必要条件
 
@@ -487,19 +487,19 @@ Unity Package Managerを使用すると、GitリポジトリからVoxel Editor�
 
 2. 以下を開きます。
 
-   Window > Package Manager
+   `Window > Package Manager`
 
-3. Package Managerウィンドウ左上の+ボタンをクリックします。
+3. Package Managerウィンドウ左上の`+`ボタンをクリックします。
 
 4. 以下を選択します。
 
-   Add package from git URL
+   `Add package from git URL`
 
 5. 以下のGit URLを入力します。
 
-   https://github.com/momiji1107/VoxelEditor.git
+   `https://github.com/momiji1107/VoxelEditor.git`
 
-6. Addをクリックします。
+6. `Add`をクリックします。
 
 UnityがGitリポジトリからVoxel Editorパッケージをダウンロードし、自動的にインストールします。
 
@@ -507,7 +507,7 @@ UnityがGitリポジトリからVoxel Editorパッケージをダウンロード
 
 UnityがGitを認識できない場合、以下のようなエラーが表示されてインストールに失敗することがあります。
 
-No 'git' executable was found
+`No 'git' executable was found`
 
 Git URLからのパッケージインストールについて詳しくは、Unity公式ドキュメントを参照してください。
 
