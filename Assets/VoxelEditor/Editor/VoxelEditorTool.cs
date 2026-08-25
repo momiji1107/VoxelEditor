@@ -272,14 +272,17 @@ public class VoxelEditorTool : EditorTool
 
         if (prefab == null)
         {
-            Debug.LogWarning("Voxel Editor: Please select a Prefab. / Voxel Editor: Prefabを選択してください。");
+            Debug.LogWarning(
+                Localize("Voxel Editor: Prefabを選択してください。", 
+                    "Voxel Editor: Please select a Prefab."));
             return;
         }
 
         if (_voxelWorld.IsBelowMinimumHeight(_gridPosition))
         {
             Debug.LogWarning(
-                $"Voxel Editor: It cannot be placed below the minimum altitude ({_voxelWorld.MinimumHeight}). / Voxel Editor: 最低高度(Minimum Height) ({_voxelWorld.MinimumHeight}) より下には配置できません。");
+                Localize("Voxel Editor: 最低高度(Minimum Height) (" + _voxelWorld.MinimumHeight + ") より下には配置できません。", 
+                    "Voxel Editor: It cannot be placed below the minimum altitude ("+ _voxelWorld.MinimumHeight + ")."));
             return;
         }
 
@@ -824,7 +827,9 @@ public class VoxelEditorTool : EditorTool
     /// </summary>
     private void DrawRotationSettings()
     {
-        string rotationLabel = _showRotationSettings ? "Rotation ▲" : "Rotation ▼";
+        string rotationLabel = _showRotationSettings 
+            ? Localize("回転 ▲", "Rotation ▲") 
+            : Localize("回転 ▼", "Rotation ▼");
 
         if (GUILayout.Button(rotationLabel))
         {
@@ -928,7 +933,7 @@ public class VoxelEditorTool : EditorTool
 
         GUILayout.BeginHorizontal();
 
-        GUILayout.Label("Grid Size", GUILayout.Width(60f));
+        GUILayout.Label(Localize("Gridのサイズ", "Grid Size"), GUILayout.Width(60f));
 
         if (GUILayout.Button("-", GUILayout.Width(GridSizeButtonWidth)))
         {
@@ -1077,12 +1082,12 @@ public class VoxelEditorTool : EditorTool
 
         GUILayout.BeginArea(guiRect, "Voxel Editor", GUI.skin.window);
 
-        GUILayout.Label("Tool");
+        GUILayout.Label(Localize("ツール", "Tool"));
 
         GUILayout.BeginHorizontal();
 
-        if (GUILayout.Toggle(_toolMode == ToolMode.Pen, "Pen", GUI.skin.button)) _toolMode = ToolMode.Pen;
-        if (GUILayout.Toggle(_toolMode == ToolMode.Eraser, "Eraser", GUI.skin.button)) _toolMode = ToolMode.Eraser;
+        if (GUILayout.Toggle(_toolMode == ToolMode.Pen, Localize("ペン", "Pen"), GUI.skin.button)) _toolMode = ToolMode.Pen;
+        if (GUILayout.Toggle(_toolMode == ToolMode.Eraser, Localize("消しゴム", "Eraser"), GUI.skin.button)) _toolMode = ToolMode.Eraser;
 
         GUILayout.EndHorizontal();
 
@@ -1090,7 +1095,9 @@ public class VoxelEditorTool : EditorTool
 
         if (_toolMode == ToolMode.Pen)
         {
-            if (GUILayout.Button(_penDragEnabled ? "Pen Drag : ON" : "Pen Drag : OFF"))
+            if (GUILayout.Button(_penDragEnabled 
+                    ? Localize("ペンドラッグ : ON", "Pen Drag : ON") 
+                    : Localize("ペンドラッグ : OFF", "Pen Drag : OFF")))
             {
                 _penDragEnabled = !_penDragEnabled;
                 CancelDrag();
@@ -1098,7 +1105,9 @@ public class VoxelEditorTool : EditorTool
         }
         else
         {
-            if (GUILayout.Button(_eraserDragEnabled ? "Eraser Drag : ON" : "Eraser Drag : OFF"))
+            if (GUILayout.Button(_eraserDragEnabled 
+                    ? Localize("消しゴムドラッグ : ON", "Eraser Drag : ON") 
+                    : Localize("消しゴムドラッグ : OFF", "Eraser Drag : OFF")))
             {
                 _eraserDragEnabled = !_eraserDragEnabled;
                 CancelDrag();
@@ -1111,12 +1120,12 @@ public class VoxelEditorTool : EditorTool
         {
             if (_hasHit)
             {
-                GUILayout.Label("Placement Position");
+                GUILayout.Label(Localize("設置座標", "Placement Position"));
                 GUILayout.Label($"(X,Y,Z) = ({_gridPosition.x}, {_gridPosition.y}, {_gridPosition.z})");
             }
             else
             {
-                GUILayout.Label("No Hit");
+                GUILayout.Label(Localize("未検出", "No Hit"));
             }
 
             GUILayout.Space(5);
@@ -1129,7 +1138,9 @@ public class VoxelEditorTool : EditorTool
 
             GUILayout.Label("Prefab", EditorStyles.boldLabel);
             DrawPrefabDatabaseSelector();
-            GUILayout.Label(_selectedPrefab != null ? $"selected : {_selectedPrefab.name}" : "selected : None");
+            GUILayout.Label(_selectedPrefab != null 
+                ? Localize("選択中", "Selected") + ": " +_selectedPrefab.name 
+                : Localize("選択中 : None", "Selected : None"));
 
             Rect lastRect = GUILayoutUtility.GetLastRect();
 
@@ -1141,7 +1152,7 @@ public class VoxelEditorTool : EditorTool
         }
         else
         {
-            GUILayout.Label("Eraser Mode");
+            GUILayout.Label(Localize("消しゴムモード", "Eraser Mode"));
         }
 
         GUILayout.EndArea();
@@ -1161,7 +1172,7 @@ public class VoxelEditorTool : EditorTool
     {
         if (_prefabDatabases.Count == 0)
         {
-            EditorGUILayout.HelpBox("VoxelPrefabDatabase is not found. / VoxelPrefabDatabase が見つかりません。", MessageType.Warning);
+            EditorGUILayout.HelpBox(Localize(" VoxelPrefabDatabase が見つかりません。", "VoxelPrefabDatabase is not found. "), MessageType.Warning);
             return;
         }
 
@@ -1173,7 +1184,7 @@ public class VoxelEditorTool : EditorTool
         }
 
         int newIndex = EditorGUILayout.Popup(
-            "Database",
+            Localize("データベース", "Database"),
             _selectedDatabaseIndex,
             databaseNames,
             GUILayout.Height(DatabaseSelectorHeight)
@@ -1204,13 +1215,13 @@ public class VoxelEditorTool : EditorTool
     {
         if (_prefabDatabase == null)
         {
-            EditorGUILayout.HelpBox("Prefab Database is not selected. / Prefab Database が選択されていません。", MessageType.Warning);
+            EditorGUILayout.HelpBox(Localize("Prefab Database が選択されていません。", "Prefab Database is not selected."), MessageType.Warning);
             return;
         }
 
         if (_prefabDatabase.Prefabs.Count == 0)
         {
-            EditorGUILayout.HelpBox("Prefab is not registered. / Prefabが登録されていません。", MessageType.Info);
+            EditorGUILayout.HelpBox(Localize("Prefabが登録されていません。"," Prefab is not registered."), MessageType.Info);
             return;
         }
 
@@ -1473,5 +1484,22 @@ public class VoxelEditorTool : EditorTool
         }
 
         return AssetPreview.GetMiniThumbnail(prefab) as Texture2D;
+    }
+    
+    // =========================================================
+    // Switch between English and Japanese
+    // 英語と日本語の切り替え
+    // =========================================================
+    
+    /// <summary>
+    /// Switches the language to match the Unity language setting.
+    /// Unityの設定言語に合わせて言語を切り替えます。
+    /// </summary>
+    /// <param name="japanese">Japanese text string : 日本語の文字列</param>
+    /// <param name="english">English text string : 英語の文字列</param>
+    /// <returns>Configured language string : 設定言語の文字列</returns>
+    public static string Localize(string japanese, string english)
+    {
+        return EditorPrefs.GetString("Editor.kEditorLanguage", "English") == "Japanese" ? japanese : english;
     }
 }
