@@ -14,25 +14,15 @@ public class VoxelPrefabDatabase : ScriptableObject
 
     public void AddPrefab(GameObject prefab)
     {
-        if (prefab == null)
-        {
-            return;
-        }
-
-        if (_prefabs.Contains(prefab))
-        {
-            return;
-        }
+        if (prefab == null) return;
+        if (_prefabs.Contains(prefab)) return;
 
         _prefabs.Add(prefab);
     }
 
     public void RemovePrefab(GameObject prefab)
     {
-        if (prefab == null)
-        {
-            return;
-        }
+        if (prefab == null) return;
 
         _prefabs.Remove(prefab);
     }

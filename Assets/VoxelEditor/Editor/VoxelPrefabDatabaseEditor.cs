@@ -9,8 +9,7 @@ public class VoxelPrefabDatabaseEditor
 
     public override void OnInspectorGUI()
     {
-        VoxelPrefabDatabase database =
-            (VoxelPrefabDatabase)target;
+        VoxelPrefabDatabase database = (VoxelPrefabDatabase)target;
 
         EditorGUILayout.LabelField(
             "Voxel Prefabs",
@@ -40,12 +39,9 @@ public class VoxelPrefabDatabaseEditor
 
         EditorGUILayout.Space(5);
 
-        for (int i = 0;
-             i < database.Prefabs.Count;
-             i++)
+        for (int i = 0; i < database.Prefabs.Count; i++)
         {
-            GameObject prefab =
-                database.Prefabs[i];
+            GameObject prefab = database.Prefabs[i];
 
             EditorGUILayout.BeginHorizontal();
 
@@ -59,11 +55,7 @@ public class VoxelPrefabDatabaseEditor
                     "Remove",
                     GUILayout.Width(70)))
             {
-                RemovePrefab(
-                    database,
-                    prefab
-                );
-
+                RemovePrefab(database, prefab);
                 break;
             }
 
@@ -71,16 +63,14 @@ public class VoxelPrefabDatabaseEditor
         }
     }
 
-    private void AddPrefab(
-        VoxelPrefabDatabase database)
+    private void AddPrefab(VoxelPrefabDatabase database)
     {
         if (_prefabToAdd == null)
         {
             return;
         }
 
-        if (database.Contains(
-                _prefabToAdd))
+        if (database.Contains(_prefabToAdd))
         {
             return;
         }
@@ -90,32 +80,22 @@ public class VoxelPrefabDatabaseEditor
             "Add Voxel Prefab"
         );
 
-        database.AddPrefab(
-            _prefabToAdd
-        );
+        database.AddPrefab(_prefabToAdd);
 
-        EditorUtility.SetDirty(
-            database
-        );
+        EditorUtility.SetDirty(database);
 
         _prefabToAdd = null;
     }
 
-    private void RemovePrefab(
-        VoxelPrefabDatabase database,
-        GameObject prefab)
+    private void RemovePrefab(VoxelPrefabDatabase database, GameObject prefab)
     {
         Undo.RecordObject(
             database,
             "Remove Voxel Prefab"
         );
 
-        database.RemovePrefab(
-            prefab
-        );
+        database.RemovePrefab(prefab);
 
-        EditorUtility.SetDirty(
-            database
-        );
+        EditorUtility.SetDirty(database);
     }
 }
