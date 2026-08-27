@@ -48,10 +48,10 @@ namespace VoxelEditor.Editor
         // =========================================================
 
         private ToolMode _toolMode = ToolMode.Pen;
-        private Vector2 _prefabScrollPosition;
-        private int _prefabListHash;
         private GameObject _eraseTarget;
         private Vector3Int _lastErasedPosition;
+        private Vector3Int _eraseGridPosition;
+        private bool _hasEraseGridPosition;
         private bool _hasLastErasedPosition;
 
         private const float GuiWidth = 200f;
@@ -85,12 +85,24 @@ namespace VoxelEditor.Editor
         // Prefab一覧
         // =========================================================
 
+        private readonly Dictionary<GameObject, Texture2D> _prefabPreviews = new();
         private List<VoxelPrefabDatabase> _prefabDatabases = new();
         private VoxelPrefabDatabase _prefabDatabase;
         private int _selectedDatabaseIndex;
-        private GameObject _selectedPrefab;
-        private readonly Dictionary<GameObject, Texture2D> _prefabPreviews = new();
+        private int _prefabListHash;
+        private VoxelPrefabEntry _selectedPrefabEntry;
         private GUIStyle _prefabLabelStyle;
+        private Vector2 _prefabScrollPosition;
+        
+        private GameObject SelectedPrefab =>
+            _selectedPrefabEntry != null
+                ? _selectedPrefabEntry.Prefab
+                : null;
+
+        private Vector3Int SelectedGridSize =>
+            _selectedPrefabEntry != null
+                ? _selectedPrefabEntry.GridSize
+                : Vector3Int.one;
 
         private const float PrefabItemHeight = 80f;
         private const float PrefabItemSpacing = 5f;
@@ -246,9 +258,9 @@ namespace VoxelEditor.Editor
                 Vector3 placementPosition =
                     hit.point +
                     hit.normal *
-                    (VoxelGridUtility.CellSize * 0.5f);
+                    (_voxelWorld.CellSize * 0.5f);
 
-                _gridPosition = VoxelGridUtility.WorldToGrid(placementPosition);
+                _gridPosition = VoxelGridUtility.WorldToGrid(placementPosition, _voxelWorld.CellSize);
                 _hasHit = true;
                 return;
             }
@@ -276,43 +288,85 @@ namespace VoxelEditor.Editor
                 return;
             }
 
-            GameObject prefab = _selectedPrefab;
-
-            if (prefab == null)
+            if (_selectedPrefabEntry == null ||
+                _selectedPrefabEntry.Prefab == null)
             {
                 Debug.LogWarning(
-                    Localize("Voxel Editor: Prefabを選択してください。",
-                        "Voxel Editor: Please select a Prefab."));
+                    Localize(
+                        "Voxel Editor: プレハブを選択してください。",
+                        "Voxel Editor: Please select a Prefab."
+                    )
+                );
                 return;
             }
 
-            if (_voxelWorld.IsBelowMinimumHeight(_gridPosition))
+            GameObject prefab = _selectedPrefabEntry.Prefab;
+
+            Vector3Int originalGridSize =
+                _selectedPrefabEntry.GridSize;
+
+            Quaternion rotation =
+                Quaternion.Euler(_prefabRotation);
+
+            Vector3Int rotatedGridSize =
+                VoxelGridUtility.GetRotatedGridSize(
+                    originalGridSize,
+                    rotation
+                );
+
+            if (!_voxelWorld.CanPlaceBlock(
+                    _gridPosition,
+                    originalGridSize,
+                    rotation))
             {
                 Debug.LogWarning(
-                    Localize("Voxel Editor: 最低高度(Minimum Height) (" + _voxelWorld.MinimumHeight + ") より下には配置できません。",
-                        "Voxel Editor: It cannot be placed below the minimum altitude (" + _voxelWorld.MinimumHeight +
-                        ")."));
+                    Localize(
+                        "Voxel Editor: 回転後の占有範囲に配置できないGridがあります。",
+                        "Voxel Editor: The rotated occupied area contains unavailable Grids."
+                    )
+                );
+
                 return;
             }
 
-            if (_voxelWorld.HasBlock(_gridPosition))
-            {
-                return;
-            }
+            /*
+             * GridPositionを回転中心として固定する。
+             *
+             * PrefabのTransform原点は元のGridSizeの中心にあるため、
+             * GridToWorldCenter()によって、回転後もGridPositionが
+             * 回転中心として一致する位置へTransformを配置する。
+             */
+            Vector3 worldPosition =
+                VoxelGridUtility.GridToWorldCenter(
+                    _gridPosition,
+                    originalGridSize,
+                    rotation,
+                    _voxelWorld.CellSize
+                );
 
-            Vector3 worldPosition = VoxelGridUtility.GridToWorld(_gridPosition);
-
-            GameObject block = (GameObject)PrefabUtility.InstantiatePrefab(prefab);
+            GameObject block =
+                (GameObject)PrefabUtility.InstantiatePrefab(prefab);
 
             block.transform.SetParent(_voxelWorld.transform);
             block.transform.position = worldPosition;
-            block.transform.rotation = Quaternion.Euler(_prefabRotation);
+            block.transform.rotation = rotation;
 
-            Undo.RegisterCreatedObjectUndo(block, "Place Voxel Block");
+            Undo.RegisterCreatedObjectUndo(
+                block,
+                "Place Voxel Block"
+            );
 
-            Undo.RecordObject(_voxelWorld, "Add Voxel Block");
+            Undo.RecordObject(
+                _voxelWorld,
+                "Add Voxel Block"
+            );
 
-            _voxelWorld.AddBlock(_gridPosition, prefab, block.transform.rotation);
+            _voxelWorld.AddBlock(
+                prefab,
+                _gridPosition,
+                originalGridSize,
+                rotation
+            );
         }
 
         /// <summary>
@@ -336,7 +390,7 @@ namespace VoxelEditor.Editor
 
             Vector3 hitPosition = ray.GetPoint(distance);
 
-            gridPosition = VoxelGridUtility.WorldToGrid(hitPosition);
+            gridPosition = VoxelGridUtility.WorldToGrid(hitPosition, _voxelWorld.CellSize);
             gridPosition.y = Mathf.RoundToInt(minimumHeight);
 
             return true;
@@ -350,24 +404,42 @@ namespace VoxelEditor.Editor
         /// <returns>True if the cursor is over the last placed block : カーソルが最後に配置したブロック上にある場合はtrue</returns>
         private bool IsCursorOverLastPlacedBlock(Event currentEvent)
         {
-            Ray ray = HandleUtility.GUIPointToWorldRay(currentEvent.mousePosition);
-
-            if (!Physics.Raycast(ray, out RaycastHit hit))
+            if (_voxelWorld == null)
             {
                 return false;
             }
 
-            GameObject hitObject = hit.collider.gameObject;
-            GameObject rootObject = PrefabUtility.GetOutermostPrefabInstanceRoot(hitObject);
+            Ray ray =
+                HandleUtility.GUIPointToWorldRay(
+                    currentEvent.mousePosition
+                );
 
-            if (rootObject == null)
+            if (!Physics.Raycast(
+                    ray,
+                    out RaycastHit hit))
             {
-                rootObject = hitObject;
+                return false;
             }
 
-            Vector3Int hitGridPosition = VoxelGridUtility.WorldToGrid(rootObject.transform.position);
+            Vector3 insidePoint =
+                hit.point -
+                hit.normal * 0.001f;
 
-            return hitGridPosition == _lastPlacedPosition;
+            Vector3Int hitGridPosition =
+                VoxelGridUtility.WorldToGrid(
+                    insidePoint,
+                    _voxelWorld.CellSize
+                );
+
+            if (!_voxelWorld.TryGetBlock(
+                    hitGridPosition,
+                    out VoxelBlockData blockData))
+            {
+                return false;
+            }
+
+            return blockData.GridPosition ==
+                _lastPlacedPosition;
         }
 
         // =========================================================
@@ -383,20 +455,54 @@ namespace VoxelEditor.Editor
         private void UpdateEraseTarget(Event currentEvent)
         {
             _eraseTarget = null;
+            _hasEraseGridPosition = false;
 
-            Ray ray = HandleUtility.GUIPointToWorldRay(currentEvent.mousePosition);
-
-            if (!Physics.Raycast(ray, out RaycastHit hit))
+            if (_voxelWorld == null)
             {
                 return;
             }
 
-            GameObject hitObject = hit.collider.gameObject;
-            GameObject rootObject = PrefabUtility.GetOutermostPrefabInstanceRoot(hitObject);
+            Ray ray =
+                HandleUtility.GUIPointToWorldRay(
+                    currentEvent.mousePosition
+                );
 
-            _eraseTarget = rootObject != null
-                ? rootObject
-                : hitObject;
+            if (!Physics.Raycast(
+                    ray,
+                    out RaycastHit hit))
+            {
+                return;
+            }
+
+            GameObject hitObject =
+                hit.collider.gameObject;
+
+            GameObject rootObject =
+                PrefabUtility.GetOutermostPrefabInstanceRoot(
+                    hitObject
+                );
+
+            _eraseTarget =
+                rootObject != null
+                    ? rootObject
+                    : hitObject;
+
+            /*
+             * 面の外側ではなく、少し内側の位置をGrid化する。
+             * これにより、Rayがブロックの表面に当たった場合でも
+             * そのブロック自身のGridを取得できる。
+             */
+            Vector3 insidePoint =
+                hit.point -
+                hit.normal * 0.001f;
+
+            _eraseGridPosition =
+                VoxelGridUtility.WorldToGrid(
+                    insidePoint,
+                    _voxelWorld.CellSize
+                );
+
+            _hasEraseGridPosition = true;
         }
 
         // -------------------------
@@ -406,20 +512,14 @@ namespace VoxelEditor.Editor
 
         private void EraseBlock()
         {
-            if (_eraseTarget == null)
+            if (_voxelWorld == null ||
+                !_hasEraseGridPosition)
             {
                 return;
             }
-
-            if (_voxelWorld == null)
-            {
-                return;
-            }
-
-            Vector3Int gridPosition = VoxelGridUtility.WorldToGrid(_eraseTarget.transform.position);
 
             if (!_voxelWorld.TryGetBlock(
-                    gridPosition,
+                    _eraseGridPosition,
                     out VoxelBlockData blockData))
             {
                 return;
@@ -430,9 +530,18 @@ namespace VoxelEditor.Editor
                 "Remove Voxel Block"
             );
 
-            _voxelWorld.RemoveBlock(gridPosition);
+            _voxelWorld.RemoveBlock(
+                _eraseGridPosition
+            );
 
-            Undo.DestroyObjectImmediate(_eraseTarget);
+            if (_eraseTarget != null)
+            {
+                Undo.DestroyObjectImmediate(
+                    _eraseTarget
+                );
+            }
+
+            SceneView.RepaintAll();
         }
 
         // =========================================================
@@ -533,54 +642,39 @@ namespace VoxelEditor.Editor
                 return;
             }
 
-            // -------------------------
-            // Check the cursor position
-            // カーソル位置を確認
-            // -------------------------
-
             if (IsCursorOverLastPlacedBlock(currentEvent))
             {
                 return;
             }
 
-            // -------------------------
-            // Determine the next position
-            // 次の配置位置を決定
-            // -------------------------
-
-            Vector3Int nextPosition = GetNearestAdjacentPosition(currentEvent);
+            Vector3Int nextPosition =
+                GetNearestAdjacentPosition(currentEvent);
 
             if (_voxelWorld == null)
             {
                 return;
             }
 
-            // 最低高度より下には配置しない
-            // Do not place below the minimum height
-            if (_voxelWorld.IsBelowMinimumHeight(nextPosition))
+            Quaternion rotation =
+                Quaternion.Euler(_prefabRotation);
+
+            Vector3Int gridSize =
+                _selectedPrefabEntry.GridSize;
+
+            if (!_voxelWorld.CanPlaceBlock(
+                    nextPosition,
+                    gridSize,
+                    rotation))
             {
                 _dragPreviewPosition = nextPosition;
                 _hasDragPreview = true;
+
                 SceneView.RepaintAll();
                 return;
             }
-
-            // 既存のブロックがある位置には配置しない
-            // Do not place where a block already exists
-            if (_voxelWorld.HasBlock(nextPosition))
-            {
-                _dragPreviewPosition = nextPosition;
-                _hasDragPreview = true;
-                SceneView.RepaintAll();
-                return;
-            }
-
-            // -------------------------
-            // Place the next block
-            // 次のブロックを配置
-            // -------------------------
 
             _gridPosition = nextPosition;
+
             PlaceBlock();
 
             _lastPlacedPosition = nextPosition;
@@ -631,7 +725,7 @@ namespace VoxelEditor.Editor
 
             for (int i = 0; i < candidates.Length; i++)
             {
-                Vector3 worldPosition = VoxelGridUtility.GridToWorld(candidates[i]);
+                Vector3 worldPosition = VoxelGridUtility.GridToWorld(candidates[i], _voxelWorld.CellSize);
                 Vector2 screenPosition = HandleUtility.WorldToGUIPoint(worldPosition);
                 float distance = (screenPosition - mousePosition).sqrMagnitude;
                 int priority = GetAdjacentPriority(candidates[i] - center, camera);
@@ -667,11 +761,10 @@ namespace VoxelEditor.Editor
         private int GetAdjacentPriority(Vector3Int direction, Camera camera)
         {
             Vector3 cameraForward = camera.transform.forward;
-            Vector3 cameraPosition = camera.transform.position;
-            Vector3 centerWorld = VoxelGridUtility.GridToWorld(_lastPlacedPosition);
+            Vector3 centerWorld = VoxelGridUtility.GridToWorld(_lastPlacedPosition, _voxelWorld.CellSize);
 
             Vector3 candidateWorld =
-                centerWorld + new Vector3(direction.x, direction.y, direction.z) * VoxelGridUtility.CellSize;
+                centerWorld + new Vector3(direction.x, direction.y, direction.z) * _voxelWorld.CellSize;
             Vector3 toCandidate = candidateWorld - centerWorld;
 
             // カメラに近い方向を手前として扱う
@@ -713,24 +806,21 @@ namespace VoxelEditor.Editor
 
         private void StartEraserDrag()
         {
-            if (_eraseTarget == null)
+            if (_eraseTarget == null ||
+                !_hasEraseGridPosition ||
+                _voxelWorld == null)
             {
                 _isDragging = false;
                 return;
             }
 
-            if (_voxelWorld == null)
-            {
-                _isDragging = false;
-                return;
-            }
+            _lastErasedPosition =
+                _eraseGridPosition;
 
-            Vector3Int gridPosition = VoxelGridUtility.WorldToGrid(_eraseTarget.transform.position);
-
-            _lastErasedPosition = gridPosition;
             _hasLastErasedPosition = true;
 
             EraseBlock();
+
             SceneView.RepaintAll();
         }
 
@@ -741,26 +831,25 @@ namespace VoxelEditor.Editor
 
         private void EraseDraggedBlocks(Event currentEvent)
         {
-            if (!_hasLastErasedPosition)
+            if (!_hasLastErasedPosition ||
+                !_hasEraseGridPosition)
             {
                 return;
             }
 
-            if (_eraseTarget == null)
-            {
-                return;
-            }
+            Vector3Int currentPosition =
+                _eraseGridPosition;
 
-            Vector3Int currentPosition = VoxelGridUtility.WorldToGrid(_eraseTarget.transform.position);
-
-            if (currentPosition == _lastErasedPosition)
+            if (currentPosition ==
+                _lastErasedPosition)
             {
                 return;
             }
 
             EraseBlock();
 
-            _lastErasedPosition = currentPosition;
+            _lastErasedPosition =
+                currentPosition;
 
             SceneView.RepaintAll();
         }
@@ -777,7 +866,9 @@ namespace VoxelEditor.Editor
             _hasLastErasedPosition = false;
             _hasDragStart = false;
             _hasDragPreview = false;
+            _hasEraseGridPosition = false;
             _dragDirection = Vector3Int.zero;
+
             SceneView.RepaintAll();
         }
 
@@ -792,7 +883,9 @@ namespace VoxelEditor.Editor
             _hasDragStart = false;
             _hasDragPreview = false;
             _hasLastPlacedPosition = false;
+            _hasEraseGridPosition = false;
             _dragDirection = Vector3Int.zero;
+
             SceneView.RepaintAll();
         }
 
@@ -885,12 +978,12 @@ namespace VoxelEditor.Editor
         {
             if (!_gridVisible || _voxelWorld == null) return;
 
-            float cellSize = VoxelGridUtility.CellSize;
+            float cellSize = _voxelWorld.CellSize;
             if (cellSize <= 0f || _gridSize <= 0) return;
 
             int gridY = _voxelWorld.MinimumHeight;
 
-            Vector3 center = VoxelGridUtility.GridToWorld(new Vector3Int(0, gridY, 0));
+            Vector3 center = VoxelGridUtility.GridToWorld(new Vector3Int(0, gridY, 0), _voxelWorld.CellSize);
             center += new Vector3(cellSize * 0.5f, 0f, cellSize * 0.5f);
 
             float totalSize = _gridSize * cellSize;
@@ -973,27 +1066,85 @@ namespace VoxelEditor.Editor
 
         private void DrawPlacementPreview()
         {
-            if (!_hasHit) return;
-
-            Vector3Int previewPosition = _gridPosition;
-            if (_isDragging && _hasDragStart && _hasDragPreview && _dragDirection != Vector3Int.zero)
-                previewPosition = _dragPreviewPosition;
-
-            bool canPlace = _voxelWorld != null && !_voxelWorld.IsBelowMinimumHeight(previewPosition) &&
-                            !_voxelWorld.HasBlock(previewPosition);
-
-            Handles.color = canPlace ? Color.green : Color.red;
-
-            Vector3 worldPosition = VoxelGridUtility.GridToWorld(previewPosition);
-            Quaternion rotation = Quaternion.Euler(_prefabRotation);
-
-            using (new Handles.DrawingScope(Matrix4x4.TRS(worldPosition, rotation, Vector3.one)))
+            if (!_hasHit ||
+                _selectedPrefabEntry == null ||
+                _voxelWorld == null)
             {
-                Handles.DrawWireCube(Vector3.zero, Vector3.one * VoxelGridUtility.CellSize);
+                return;
             }
 
-            if (_isDragging && _hasDragStart && _hasDragPreview && _dragDirection != Vector3Int.zero)
-                DrawDragPreviewLine(_dragStartPosition, previewPosition);
+            Vector3Int previewPosition = _gridPosition;
+
+            if (_isDragging &&
+                _hasDragStart &&
+                _hasDragPreview)
+            {
+                previewPosition = _dragPreviewPosition;
+            }
+
+            Quaternion rotation =
+                Quaternion.Euler(_prefabRotation);
+
+            Vector3Int originalGridSize =
+                _selectedPrefabEntry.GridSize;
+
+            Vector3Int rotatedGridSize =
+                VoxelGridUtility.GetRotatedGridSize(
+                    originalGridSize,
+                    rotation
+                );
+
+            bool canPlace =
+                _voxelWorld.CanPlaceBlock(
+                    previewPosition,
+                    originalGridSize,
+                    rotation
+                );
+
+            Handles.color = canPlace
+                ? Color.green
+                : Color.red;
+
+            /*
+             * 実際のPrefabと完全に同じ計算で
+             * Transformの位置を求める。
+             */
+            Vector3 worldPosition =
+                VoxelGridUtility.GridToWorldCenter(
+                    previewPosition,
+                    originalGridSize,
+                    rotation,
+                    _voxelWorld.CellSize
+                );
+
+            Vector3 previewSize =
+                new Vector3(
+                    rotatedGridSize.x,
+                    rotatedGridSize.y,
+                    rotatedGridSize.z
+                ) * _voxelWorld.CellSize;
+
+            using (new Handles.DrawingScope(
+                       Matrix4x4.TRS(
+                           worldPosition,
+                           Quaternion.identity,
+                           Vector3.one)))
+            {
+                Handles.DrawWireCube(
+                    Vector3.zero,
+                    previewSize
+                );
+            }
+
+            if (_isDragging &&
+                _hasDragStart &&
+                _hasDragPreview)
+            {
+                DrawDragPreviewLine(
+                    _dragStartPosition,
+                    previewPosition
+                );
+            }
 
             Handles.color = Color.white;
         }
@@ -1017,7 +1168,7 @@ namespace VoxelEditor.Editor
 
             if (renderers.Length == 0)
             {
-                bounds = new Bounds(_eraseTarget.transform.position, Vector3.one * VoxelGridUtility.CellSize);
+                bounds = new Bounds(_eraseTarget.transform.position, Vector3.one * _voxelWorld.CellSize);
             }
             else
             {
@@ -1041,24 +1192,72 @@ namespace VoxelEditor.Editor
         // ドラッグプレビュー
         // -------------------------
 
-        private void DrawDragPreviewLine(Vector3Int start, Vector3Int end)
+        private void DrawDragPreviewLine(
+            Vector3Int start,
+            Vector3Int end)
         {
-            Vector3 startWorld = VoxelGridUtility.GridToWorld(start);
-            Vector3 endWorld = VoxelGridUtility.GridToWorld(end);
+            Vector3 startWorld =
+                VoxelGridUtility.GridToWorld(
+                    start,
+                    _voxelWorld.CellSize
+                );
 
-            Handles.color = new Color(0.3f, 1f, 0.3f, 0.8f);
+            Vector3 endWorld =
+                VoxelGridUtility.GridToWorld(
+                    end,
+                    _voxelWorld.CellSize
+                );
 
-            Handles.DrawLine(startWorld, endWorld);
+            Handles.color =
+                new Color(0.3f, 1f, 0.3f, 0.8f);
 
-            bool canPlace = _voxelWorld != null &&
-                            !_voxelWorld.IsBelowMinimumHeight(end) &&
-                            !_voxelWorld.HasBlock(end);
+            Handles.DrawLine(
+                startWorld,
+                endWorld
+            );
+
+            Quaternion rotation =
+                Quaternion.Euler(_prefabRotation);
+
+            Vector3Int gridSize =
+                _selectedPrefabEntry.GridSize;
+
+            bool canPlace =
+                _voxelWorld.CanPlaceBlock(
+                    end,
+                    gridSize,
+                    rotation
+                );
 
             Handles.color = canPlace
                 ? new Color(0.3f, 1f, 0.3f, 0.35f)
                 : new Color(1f, 0.2f, 0.2f, 0.35f);
 
-            Handles.DrawWireCube(endWorld, Vector3.one * VoxelGridUtility.CellSize);
+            Vector3Int rotatedGridSize =
+                VoxelGridUtility.GetRotatedGridSize(
+                    gridSize,
+                    rotation
+                );
+
+            Vector3 worldPosition =
+                VoxelGridUtility.GridToWorldCenter(
+                    end,
+                    gridSize,
+                    rotation,
+                    _voxelWorld.CellSize
+                );
+
+            Vector3 previewSize =
+                new Vector3(
+                    rotatedGridSize.x,
+                    rotatedGridSize.y,
+                    rotatedGridSize.z
+                ) * _voxelWorld.CellSize;
+
+            Handles.DrawWireCube(
+                worldPosition,
+                previewSize
+            );
 
             Handles.color = Color.white;
         }
@@ -1149,9 +1348,12 @@ namespace VoxelEditor.Editor
 
                 GUILayout.Label("Prefab", EditorStyles.boldLabel);
                 DrawPrefabDatabaseSelector();
-                GUILayout.Label(_selectedPrefab != null
-                    ? Localize("選択中", "Selected") + ": " + _selectedPrefab.name
+                GUILayout.Label(SelectedPrefab != null
+                    ? Localize("選択中", "Selected") + ": " + SelectedPrefab.name
                     : Localize("選択中 : None", "Selected : None"));
+                
+                GUILayout.Space(5);
+                DrawPrefabGridSizeSettings();
 
                 Rect lastRect = GUILayoutUtility.GetLastRect();
 
@@ -1210,10 +1412,56 @@ namespace VoxelEditor.Editor
 
             _selectedDatabaseIndex = newIndex;
             _prefabDatabase = _prefabDatabases[_selectedDatabaseIndex];
-            _selectedPrefab = null;
+            _selectedPrefabEntry = null;
             _prefabScrollPosition = Vector2.zero;
             _prefabPreviews.Clear();
             _prefabListHash = 0;
+
+            SceneView.RepaintAll();
+        }
+        
+        private void DrawPrefabGridSizeSettings()
+        {
+            VoxelPrefabEntry entry = GetSelectedPrefabEntry();
+
+            if (entry == null)
+            {
+                return;
+            }
+
+            GUILayout.Space(5);
+
+            GUILayout.Label(
+                Localize("使用Gridサイズ", "Grid Size"),
+                EditorStyles.boldLabel
+            );
+
+            Vector3Int currentGridSize = entry.GridSize;
+
+            Vector3Int newGridSize = EditorGUILayout.Vector3IntField(
+                Localize("サイズ", "Size"),
+                currentGridSize
+            );
+
+            newGridSize = new Vector3Int(
+                Mathf.Max(1, newGridSize.x),
+                Mathf.Max(1, newGridSize.y),
+                Mathf.Max(1, newGridSize.z)
+            );
+
+            if (newGridSize == currentGridSize)
+            {
+                return;
+            }
+
+            Undo.RecordObject(
+                _prefabDatabase,
+                "Change Voxel Prefab Grid Size"
+            );
+
+            entry.SetGridSize(newGridSize);
+
+            EditorUtility.SetDirty(_prefabDatabase);
 
             SceneView.RepaintAll();
         }
@@ -1303,16 +1551,16 @@ namespace VoxelEditor.Editor
         /// </summary>
         /// <param name="prefab">Prefab to display : 表示するPrefab</param>
         /// <param name="buttonRect">Display rectangle of the button : ボタンを表示する領域</param>
-        private void DrawPrefabButton(GameObject prefab, Rect buttonRect)
+        private void DrawPrefabButton(VoxelPrefabEntry entry, Rect buttonRect)
         {
-            if (prefab == null) return;
+            if (entry == null || entry.Prefab == null) return;
 
-            Texture2D preview = GetPrefabPreview(prefab);
-            bool selected = _selectedPrefab == prefab;
+            Texture2D preview = GetPrefabPreview(entry.Prefab);
+            bool selected = _selectedPrefabEntry == entry;
 
             if (GUI.Button(buttonRect, GUIContent.none, GUI.skin.button))
             {
-                _selectedPrefab = prefab;
+                _selectedPrefabEntry = entry;
                 SceneView.RepaintAll();
             }
 
@@ -1341,7 +1589,7 @@ namespace VoxelEditor.Editor
                 _prefabLabelStyle.normal.textColor = Color.white;
             }
 
-            GUI.Label(labelRect, prefab.name, _prefabLabelStyle);
+            GUI.Label(labelRect, entry.Prefab.name, _prefabLabelStyle);
 
             if (selected)
             {
@@ -1418,7 +1666,7 @@ namespace VoxelEditor.Editor
                 {
                     _prefabDatabase = null;
                     _selectedDatabaseIndex = 0;
-                    _selectedPrefab = null;
+                    _selectedPrefabEntry = null;
                     _prefabPreviews.Clear();
                     _prefabListHash = 0;
                     return;
@@ -1431,7 +1679,7 @@ namespace VoxelEditor.Editor
                 );
 
                 _prefabDatabase = _prefabDatabases[_selectedDatabaseIndex];
-                _selectedPrefab = null;
+                _selectedPrefabEntry = null;
                 _prefabPreviews.Clear();
                 _prefabListHash = 0;
 
@@ -1452,8 +1700,10 @@ namespace VoxelEditor.Editor
 
             int listHash = 17;
 
-            foreach (GameObject prefab in _prefabDatabase.Prefabs)
+            foreach (VoxelPrefabEntry entry in _prefabDatabase.Prefabs)
             {
+                GameObject prefab = entry?.Prefab;
+
                 listHash = listHash * 31 + (prefab != null ? prefab.GetInstanceID() : 0);
             }
 
@@ -1463,6 +1713,32 @@ namespace VoxelEditor.Editor
                 _prefabPreviews.Clear();
                 SceneView.RepaintAll();
             }
+        }
+        
+        private VoxelPrefabEntry GetSelectedPrefabEntry()
+        {
+            if (_prefabDatabase == null || _selectedPrefabEntry == null)
+            {
+                return null;
+            }
+
+            return _selectedPrefabEntry;
+        }
+        
+        private Vector3 GetSelectedPrefabWorldSize()
+        {
+            if (_voxelWorld == null)
+            {
+                return Vector3.one;
+            }
+
+            Vector3Int gridSize = SelectedGridSize;
+
+            return new Vector3(
+                gridSize.x * _voxelWorld.CellSize,
+                gridSize.y * _voxelWorld.CellSize,
+                gridSize.z * _voxelWorld.CellSize
+            );
         }
 
         /// <summary>

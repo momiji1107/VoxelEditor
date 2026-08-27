@@ -13,7 +13,11 @@ MonoBehaviour:
   m_Name: DVoxelPrefabDatabase
   m_EditorClassIdentifier: Assembly-CSharp::VoxelPrefabDatabase
   _prefabs:
-  - {fileID: 8287137217709261135, guid: 9ca0137d547e449908b83cedb5e79535, type: 3}
-  - {fileID: 5859634885728811508, guid: 4916749fed27343ad900144bc53fccc1, type: 3}
-  - {fileID: 28381764383994933, guid: c87b0be9e218c4a5b90fb0444ac62865, type: 3}
-  - {fileID: 7100434459300035837, guid: 13fb4968b2c654cf6bf7efc7c70ce13b, type: 3}
+  - _prefab: {fileID: 8287137217709261135, guid: 9ca0137d547e449908b83cedb5e79535, type: 3}
+    _gridSize: {x: 1, y: 1, z: 1}
+  - _prefab: {fileID: 5859634885728811508, guid: 4916749fed27343ad900144bc53fccc1, type: 3}
+    _gridSize: {x: 1, y: 1, z: 1}
+  - _prefab: {fileID: 28381764383994933, guid: c87b0be9e218c4a5b90fb0444ac62865, type: 3}
+    _gridSize: {x: 1, y: 2, z: 1}
+  - _prefab: {fileID: 7100434459300035837, guid: 13fb4968b2c654cf6bf7efc7c70ce13b, type: 3}
+    _gridSize: {x: 1, y: 2, z: 3}

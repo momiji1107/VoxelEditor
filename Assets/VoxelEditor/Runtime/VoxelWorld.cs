@@ -5,12 +5,14 @@ namespace VoxelEditor.Runtime
 {
     public class VoxelWorld : MonoBehaviour
     {
-        [Header("Grid Settings")] [SerializeField]
-        private int _minimumHeight = 0;
+        [Header("Grid Settings")]
+        [SerializeField] private int _minimumHeight = 0;
+        [SerializeField, Min(0.01f)] private float _cellSize = 1f;
 
         [SerializeField] private List<VoxelBlockData> _blocks = new();
 
         public int MinimumHeight => _minimumHeight;
+        public float CellSize => _cellSize;
 
         public IReadOnlyList<VoxelBlockData> Blocks => _blocks;
 
@@ -20,14 +22,16 @@ namespace VoxelEditor.Runtime
         }
 
         public void AddBlock(
-            Vector3Int gridPosition,
             GameObject prefab,
+            Vector3Int gridPosition,
+            Vector3Int gridSize,
             Quaternion rotation)
         {
             VoxelBlockData blockData =
                 new VoxelBlockData(
-                    gridPosition,
                     prefab,
+                    gridPosition,
+                    gridSize,
                     rotation
                 );
 
@@ -38,7 +42,7 @@ namespace VoxelEditor.Runtime
         {
             for (int i = _blocks.Count - 1; i >= 0; i--)
             {
-                if (_blocks[i].GridPosition == gridPosition)
+                if (_blocks[i].OccupiesPosition(gridPosition))
                 {
                     _blocks.RemoveAt(i);
                     return;
@@ -52,25 +56,97 @@ namespace VoxelEditor.Runtime
         {
             foreach (VoxelBlockData block in _blocks)
             {
-                if (block.GridPosition == gridPosition)
+                if (block.OccupiesPosition(gridPosition))
                 {
                     blockData = block;
-
                     return true;
                 }
             }
 
             blockData = null;
+            return false;
+        }
+
+        public bool IsPositionOccupied(Vector3Int position)
+        {
+            foreach (VoxelBlockData block in _blocks)
+            {
+                if (block.OccupiesPosition(position))
+                {
+                    return true;
+                }
+            }
 
             return false;
         }
 
-        public bool HasBlock(Vector3Int gridPosition)
+        public bool IsAreaOccupied(
+            Vector3Int gridPosition,
+            Vector3Int gridSize)
         {
-            return TryGetBlock(
-                gridPosition,
-                out _
-            );
+            Vector3Int maxPosition =
+                gridPosition + gridSize - Vector3Int.one;
+
+            foreach (VoxelBlockData block in _blocks)
+            {
+                for (int x = gridPosition.x; x <= maxPosition.x; x++)
+                {
+                    for (int y = gridPosition.y; y <= maxPosition.y; y++)
+                    {
+                        for (int z = gridPosition.z; z <= maxPosition.z; z++)
+                        {
+                            if (block.OccupiesPosition(
+                                    new Vector3Int(x, y, z)))
+                            {
+                                return true;
+                            }
+                        }
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Determines whether the entire rotated Prefab can be placed.
+        /// 回転後のPrefab全体を配置できるか判定します。
+        /// </summary>
+        public bool CanPlaceBlock(
+            Vector3Int gridPosition,
+            Vector3Int gridSize,
+            Quaternion rotation)
+        {
+            for (int x = 0; x < gridSize.x; x++)
+            {
+                for (int y = 0; y < gridSize.y; y++)
+                {
+                    for (int z = 0; z < gridSize.z; z++)
+                    {
+                        Vector3Int localPosition =
+                            new Vector3Int(x, y, z);
+
+                        Vector3Int occupiedPosition =
+                            VoxelGridUtility.GetRotatedGridPosition(
+                                gridPosition,
+                                localPosition,
+                                rotation
+                            );
+
+                        if (IsBelowMinimumHeight(occupiedPosition))
+                        {
+                            return false;
+                        }
+
+                        if (IsPositionOccupied(occupiedPosition))
+                        {
+                            return false;
+                        }
+                    }
+                }
+            }
+
+            return true;
         }
     }
 }

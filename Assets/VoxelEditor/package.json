@@ -1,10 +1,27 @@
 {
   "name": "com.momiji.voxel-editor",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "displayName": "Voxel Editor",
-  "description": "A voxel editing tool for Unity.",
-  "unity": "6000.0",
+  "description": "A Unity Editor Tool for easily placing voxel-style Prefabs on a 3D grid, similar to a 3D Tilemap.",
+  "unity": "6000.3",
   "author": {
-    "name": "Momiji"
-  }
+    "name": "Momiji",
+    "url": "https://github.com/momiji1107"
+  },
+  "keywords": [
+    "voxel",
+    "editor",
+    "3d",
+    "grid",
+    "prefab",
+    "tilemap"
+  ],
+  "license": "MIT",
+  "samples": [
+    {
+      "displayName": "Voxel Editor Sample",
+      "description": "A sample scene demonstrating basic Voxel Editor usage.",
+      "path": "Samples~/Scenes/VoxelEditorSampleScene"
+    }
+  ]
 }
