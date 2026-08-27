@@ -5,8 +5,7 @@ using VoxelEditor.Runtime;
 namespace VoxelEditor.Editor
 {
     [CustomEditor(typeof(VoxelPrefabDatabase))]
-    public class VoxelPrefabDatabaseEditor
-        : UnityEditor.Editor
+    public class VoxelPrefabDatabaseEditor : UnityEditor.Editor
     {
         private GameObject _prefabToAdd;
 
@@ -21,15 +20,15 @@ namespace VoxelEditor.Editor
 
             EditorGUILayout.Space(5);
 
-            _prefabToAdd =
-                (GameObject)EditorGUILayout.ObjectField(
-                    "Prefab",
-                    _prefabToAdd,
-                    typeof(GameObject),
-                    false
-                );
+            _prefabToAdd = (GameObject)EditorGUILayout.ObjectField(
+                "Prefab",
+                _prefabToAdd,
+                typeof(GameObject),
+                false
+            );
 
-            if (GUILayout.Button("Add Prefab"))
+            if (GUILayout.Button(
+                    VoxelEditorTool.Localize("プレハブを追加", "Add Prefab")))
             {
                 AddPrefab(database);
             }
@@ -37,32 +36,81 @@ namespace VoxelEditor.Editor
             EditorGUILayout.Space(10);
 
             EditorGUILayout.LabelField(
-                VoxelEditorTool.Localize($"Number of registered Prefabs", " 登録Prefab数") + " : {database.Prefabs.Count}"
+                VoxelEditorTool.Localize(
+                    "登録Prefab数",
+                    "Number of registered Prefabs"
+                ) + $" : {database.Prefabs.Count}"
             );
 
             EditorGUILayout.Space(5);
 
             for (int i = 0; i < database.Prefabs.Count; i++)
             {
-                GameObject prefab = database.Prefabs[i];
+                VoxelPrefabEntry entry = database.Prefabs[i];
+
+                if (entry == null)
+                {
+                    continue;
+                }
+
+                GameObject prefab = entry.Prefab;
+
+                EditorGUILayout.BeginVertical("box");
 
                 EditorGUILayout.BeginHorizontal();
 
                 EditorGUILayout.ObjectField(
+                    "Prefab",
                     prefab,
                     typeof(GameObject),
                     false
                 );
 
                 if (GUILayout.Button(
-                        "Remove",
+                        VoxelEditorTool.Localize("削除", "Remove"),
                         GUILayout.Width(70)))
                 {
-                    RemovePrefab(database, prefab);
+                    RemovePrefab(database, i);
+                    EditorGUILayout.EndHorizontal();
+                    EditorGUILayout.EndVertical();
                     break;
                 }
 
                 EditorGUILayout.EndHorizontal();
+
+                EditorGUILayout.Space(3);
+
+                Vector3Int currentGridSize = entry.GridSize;
+
+                Vector3Int newGridSize = EditorGUILayout.Vector3IntField(
+                    VoxelEditorTool.Localize(
+                        "Gridサイズ",
+                        "Grid Size"
+                    ),
+                    currentGridSize
+                );
+
+                newGridSize = new Vector3Int(
+                    Mathf.Max(1, newGridSize.x),
+                    Mathf.Max(1, newGridSize.y),
+                    Mathf.Max(1, newGridSize.z)
+                );
+
+                if (newGridSize != currentGridSize)
+                {
+                    Undo.RecordObject(
+                        database,
+                        "Change Voxel Prefab Grid Size"
+                    );
+
+                    entry.SetGridSize(newGridSize);
+
+                    EditorUtility.SetDirty(database);
+                }
+
+                EditorGUILayout.EndVertical();
+
+                EditorGUILayout.Space(5);
             }
         }
 
@@ -90,14 +138,16 @@ namespace VoxelEditor.Editor
             _prefabToAdd = null;
         }
 
-        private void RemovePrefab(VoxelPrefabDatabase database, GameObject prefab)
+        private void RemovePrefab(
+            VoxelPrefabDatabase database,
+            int index)
         {
             Undo.RecordObject(
                 database,
                 "Remove Voxel Prefab"
             );
 
-            database.RemovePrefab(prefab);
+            database.RemovePrefab(index);
 
             EditorUtility.SetDirty(database);
         }
