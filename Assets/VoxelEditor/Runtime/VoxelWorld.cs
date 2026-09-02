@@ -7,14 +7,59 @@ namespace VoxelEditor.Runtime
     {
         [Header("Grid Settings")]
         [SerializeField] private int _minimumHeight = 0;
-        [SerializeField, Min(0.01f)] private float _cellSize = 1f;
 
-        [SerializeField] private List<VoxelBlockData> _blocks = new();
+        [SerializeField, Min(0.01f)]
+        private float _cellSize = 1f;
+
+        [SerializeField]
+        private List<VoxelBlockData> _blocks = new();
+
+        private float _lastValidCellSize;
 
         public int MinimumHeight => _minimumHeight;
         public float CellSize => _cellSize;
 
         public IReadOnlyList<VoxelBlockData> Blocks => _blocks;
+
+        private void Awake()
+        {
+            _lastValidCellSize = _cellSize;
+        }
+
+        private void OnValidate()
+        {
+            _cellSize = Mathf.Max(0.01f, _cellSize);
+
+            if (_lastValidCellSize <= 0f)
+            {
+                _lastValidCellSize = _cellSize;
+            }
+
+            if (_blocks != null && _blocks.Count > 0)
+            {
+                _cellSize = _lastValidCellSize;
+                return;
+            }
+
+            _lastValidCellSize = _cellSize;
+        }
+
+        /// <summary>
+        /// CellSizeを変更します。
+        /// ブロックが1つでも存在する場合は変更できません。
+        /// </summary>
+        public bool TrySetCellSize(float cellSize)
+        {
+            if (_blocks.Count > 0)
+            {
+                return false;
+            }
+
+            _cellSize = Mathf.Max(0.01f, cellSize);
+            _lastValidCellSize = _cellSize;
+
+            return true;
+        }
 
         public bool IsBelowMinimumHeight(Vector3Int gridPosition)
         {
