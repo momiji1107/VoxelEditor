@@ -1006,7 +1006,7 @@ namespace VoxelEditor.Editor
             Vector3 gridCenter =
                 new Vector3(
                     -0.5f,
-                    gridY * cellSize,
+                    gridY * cellSize -0.5f,
                     -0.5f
                 );
 
