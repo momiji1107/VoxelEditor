@@ -28,7 +28,7 @@ namespace VoxelEditor.Runtime
 
         private void OnValidate()
         {
-            _cellSize = Mathf.Max(0.01f, _cellSize);
+            _cellSize = Mathf.Max(0.1f, _cellSize);
 
             if (_lastValidCellSize <= 0f)
             {
@@ -43,24 +43,7 @@ namespace VoxelEditor.Runtime
 
             _lastValidCellSize = _cellSize;
         }
-
-        /// <summary>
-        /// CellSizeを変更します。
-        /// ブロックが1つでも存在する場合は変更できません。
-        /// </summary>
-        public bool TrySetCellSize(float cellSize)
-        {
-            if (_blocks.Count > 0)
-            {
-                return false;
-            }
-
-            _cellSize = Mathf.Max(0.01f, cellSize);
-            _lastValidCellSize = _cellSize;
-
-            return true;
-        }
-
+        
         public bool IsBelowMinimumHeight(Vector3Int gridPosition)
         {
             return gridPosition.y < _minimumHeight;
@@ -119,34 +102,6 @@ namespace VoxelEditor.Runtime
                 if (block.OccupiesPosition(position))
                 {
                     return true;
-                }
-            }
-
-            return false;
-        }
-
-        public bool IsAreaOccupied(
-            Vector3Int gridPosition,
-            Vector3Int gridSize)
-        {
-            Vector3Int maxPosition =
-                gridPosition + gridSize - Vector3Int.one;
-
-            foreach (VoxelBlockData block in _blocks)
-            {
-                for (int x = gridPosition.x; x <= maxPosition.x; x++)
-                {
-                    for (int y = gridPosition.y; y <= maxPosition.y; y++)
-                    {
-                        for (int z = gridPosition.z; z <= maxPosition.z; z++)
-                        {
-                            if (block.OccupiesPosition(
-                                    new Vector3Int(x, y, z)))
-                            {
-                                return true;
-                            }
-                        }
-                    }
                 }
             }
 

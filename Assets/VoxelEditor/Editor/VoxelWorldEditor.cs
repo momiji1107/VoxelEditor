@@ -1,4 +1,5 @@
 using UnityEditor;
+using UnityEditorInternal;
 using UnityEngine;
 using VoxelEditor.Runtime;
 
@@ -11,11 +12,61 @@ namespace VoxelEditor.Editor
         private SerializedProperty _cellSize;
         private SerializedProperty _blocks;
 
+        private ReorderableList _blocksList;
+
         private void OnEnable()
         {
             _minimumHeight = serializedObject.FindProperty("_minimumHeight");
             _cellSize = serializedObject.FindProperty("_cellSize");
             _blocks = serializedObject.FindProperty("_blocks");
+
+            _blocksList = new ReorderableList(
+                serializedObject,
+                _blocks,
+                false,
+                true,
+                false,
+                true);
+
+            _blocksList.drawHeaderCallback = rect =>
+            {
+                EditorGUI.LabelField(rect, "Blocks");
+            };
+
+            _blocksList.drawElementCallback = (rect, index, isActive, isFocused) =>
+            {
+                if (index < 0 || index >= _blocks.arraySize)
+                {
+                    return;
+                }
+
+                SerializedProperty element = _blocks.GetArrayElementAtIndex(index);
+
+                rect.y += 2f;
+
+                using (new EditorGUI.DisabledScope(true))
+                {
+                    EditorGUI.PropertyField(
+                        rect,
+                        element,
+                        new GUIContent($"Element {index}"),
+                        true);
+                }
+            };
+
+            _blocksList.elementHeightCallback = index =>
+            {
+                if (index < 0 || index >= _blocks.arraySize)
+                {
+                    return EditorGUIUtility.singleLineHeight;
+                }
+
+                SerializedProperty element = _blocks.GetArrayElementAtIndex(index);
+
+                return EditorGUI.GetPropertyHeight(
+                    element,
+                    true) + 4f;
+            };
         }
 
         public override void OnInspectorGUI()
@@ -40,7 +91,7 @@ namespace VoxelEditor.Editor
                     MessageType.Info);
             }
 
-            EditorGUILayout.PropertyField(_blocks, true);
+            _blocksList.DoLayoutList();
 
             serializedObject.ApplyModifiedProperties();
         }
