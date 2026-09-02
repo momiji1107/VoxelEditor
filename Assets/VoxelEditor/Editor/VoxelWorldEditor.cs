@@ -47,9 +47,7 @@ namespace VoxelEditor.Editor
 
         private string VoxelWorldEditorMessage()
         {
-            return EditorApplication.isPlaying
-                ? "ブロックが存在するため、Cell Sizeは変更できません。"
-                : "ブロックが1個以上存在するため、Cell Sizeは変更できません。";
+            return "VoxelWorldにブロックが1個以上存在するため、Cell Sizeは変更できません。";
         }
     }
 }

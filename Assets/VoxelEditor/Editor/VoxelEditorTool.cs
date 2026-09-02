@@ -40,7 +40,6 @@ namespace VoxelEditor.Editor
         private bool _hasLastPlacedPosition;
         private Vector3Int _dragStartPosition;
         private Vector3Int _lastPlacedPosition;
-        private Vector3Int _dragDirection;
 
         // =========================================================
         // Tool Settings
@@ -63,7 +62,6 @@ namespace VoxelEditor.Editor
         // =========================================================
 
         [SerializeField] private bool _showRotationSettings;
-        private Vector3 _prefabRotation = Vector3.zero;
         private const float RotationButtonHeight = 24f;
 
         // =========================================================
@@ -111,6 +109,11 @@ namespace VoxelEditor.Editor
             _selectedPrefabEntry != null
                 ? _selectedPrefabEntry.GridSize
                 : Vector3Int.one;
+        
+        private Vector3Int SelectedRotation => 
+            _selectedPrefabEntry != null 
+                ? _selectedPrefabEntry.Rotation 
+                : Vector3Int.zero;
 
         private const float PrefabItemHeight = 80f;
         private const float PrefabItemSpacing = 5f;
@@ -298,18 +301,8 @@ namespace VoxelEditor.Editor
             }
 
             GameObject prefab = _selectedPrefabEntry.Prefab;
-
-            Vector3Int originalGridSize =
-                _selectedPrefabEntry.GridSize;
-
-            Quaternion rotation =
-                Quaternion.Euler(_prefabRotation);
-
-            Vector3Int rotatedGridSize =
-                VoxelGridUtility.GetRotatedGridSize(
-                    originalGridSize,
-                    rotation
-                );
+            Vector3Int originalGridSize = _selectedPrefabEntry.GridSize;
+            Quaternion rotation = Quaternion.Euler(SelectedRotation);
 
             if (!_voxelWorld.CanPlaceBlock(
                     _gridPosition,
@@ -556,7 +549,6 @@ namespace VoxelEditor.Editor
         {
             _hasLastPlacedPosition = false;
             _hasDragStart = false;
-            _dragDirection = Vector3Int.zero;
 
             // -------------------------
             // Pen mode
@@ -617,7 +609,6 @@ namespace VoxelEditor.Editor
             _dragStartPosition = _gridPosition;
             _lastPlacedPosition = _gridPosition;
             _dragPreviewPosition = _gridPosition;
-            _dragDirection = Vector3Int.zero;
             _hasDragPreview = true;
             _hasDragStart = true;
             _hasLastPlacedPosition = false;
@@ -653,11 +644,8 @@ namespace VoxelEditor.Editor
                 return;
             }
 
-            Quaternion rotation =
-                Quaternion.Euler(_prefabRotation);
-
-            Vector3Int gridSize =
-                _selectedPrefabEntry.GridSize;
+            Quaternion rotation = Quaternion.Euler(SelectedRotation);
+            Vector3Int gridSize = _selectedPrefabEntry.GridSize;
 
             if (!_voxelWorld.CanPlaceBlock(
                     nextPosition,
@@ -856,7 +844,6 @@ namespace VoxelEditor.Editor
             _hasDragStart = false;
             _hasDragPreview = false;
             _hasEraseGridPosition = false;
-            _dragDirection = Vector3Int.zero;
 
             SceneView.RepaintAll();
         }
@@ -873,7 +860,6 @@ namespace VoxelEditor.Editor
             _hasDragPreview = false;
             _hasLastPlacedPosition = false;
             _hasEraseGridPosition = false;
-            _dragDirection = Vector3Int.zero;
 
             SceneView.RepaintAll();
         }
@@ -890,11 +876,45 @@ namespace VoxelEditor.Editor
         /// <param name="rotation">Rotation axis and direction : 回転する軸と方向</param>
         private void RotatePrefab(Vector3 rotation)
         {
-            _prefabRotation += rotation * 90f;
+            if (_selectedPrefabEntry == null) return;
+            Vector3 current = SelectedRotation;
+            current += rotation * 90f;
 
-            _prefabRotation.x = NormalizeAngle(_prefabRotation.x);
-            _prefabRotation.y = NormalizeAngle(_prefabRotation.y);
-            _prefabRotation.z = NormalizeAngle(_prefabRotation.z);
+            current.x = NormalizeAngle(current.x);
+            current.y = NormalizeAngle(current.y);
+            current.z = NormalizeAngle(current.z);
+            
+            Vector3Int newRotation = new Vector3Int(
+                (int)current.x, 
+                (int)current.y, 
+                (int)current.z);
+            _selectedPrefabEntry.SetRotation(newRotation);
+            
+            Undo.RecordObject(
+                _prefabDatabase,
+                "Change Voxel Prefab Rotation"
+            );
+
+            EditorUtility.SetDirty(_prefabDatabase);
+
+            SceneView.RepaintAll();
+        }
+        
+        private void ResetPrefabRotation()
+        {
+            if (_selectedPrefabEntry == null || _prefabDatabase == null)
+            {
+                return;
+            }
+
+            Undo.RecordObject(
+                _prefabDatabase,
+                "Reset Voxel Prefab Rotation"
+            );
+
+            _selectedPrefabEntry.SetRotation(Vector3Int.zero);
+
+            EditorUtility.SetDirty(_prefabDatabase);
 
             SceneView.RepaintAll();
         }
@@ -928,29 +948,26 @@ namespace VoxelEditor.Editor
             }
 
             if (!_showRotationSettings) return;
+            
+            GUILayout.Label($"Rotation : {SelectedRotation}");
 
             GUILayout.BeginHorizontal();
-
-            if (GUILayout.Button("X -90", GUILayout.Height(RotationButtonHeight))) RotatePrefab(Vector3.left);
             if (GUILayout.Button("X +90", GUILayout.Height(RotationButtonHeight))) RotatePrefab(Vector3.right);
-
-            GUILayout.EndHorizontal();
-
-            GUILayout.BeginHorizontal();
-
-            if (GUILayout.Button("Y -90", GUILayout.Height(RotationButtonHeight))) RotatePrefab(Vector3.down);
             if (GUILayout.Button("Y +90", GUILayout.Height(RotationButtonHeight))) RotatePrefab(Vector3.up);
-
+            if (GUILayout.Button("Z +90", GUILayout.Height(RotationButtonHeight))) RotatePrefab(Vector3.forward);
             GUILayout.EndHorizontal();
 
             GUILayout.BeginHorizontal();
-
+            if (GUILayout.Button("X -90", GUILayout.Height(RotationButtonHeight))) RotatePrefab(Vector3.left);
+            if (GUILayout.Button("Y -90", GUILayout.Height(RotationButtonHeight))) RotatePrefab(Vector3.down);
             if (GUILayout.Button("Z -90", GUILayout.Height(RotationButtonHeight))) RotatePrefab(Vector3.back);
-            if (GUILayout.Button("Z +90", GUILayout.Height(RotationButtonHeight))) RotatePrefab(Vector3.forward);
-
             GUILayout.EndHorizontal();
-
-            GUILayout.Label($"Rotation : {_prefabRotation}");
+            
+            if (GUILayout.Button(
+                    Localize("回転をリセット", "Rotation Reset")))
+            {
+                ResetPrefabRotation();
+            }
         }
 
         // =========================================================
@@ -1198,7 +1215,7 @@ namespace VoxelEditor.Editor
             }
 
             Quaternion rotation =
-                Quaternion.Euler(_prefabRotation);
+                Quaternion.Euler(SelectedRotation);
 
             Vector3Int originalGridSize =
                 _selectedPrefabEntry.GridSize;
@@ -1332,7 +1349,7 @@ namespace VoxelEditor.Editor
             );
 
             Quaternion rotation =
-                Quaternion.Euler(_prefabRotation);
+                Quaternion.Euler(SelectedRotation);
 
             Vector3Int gridSize =
                 _selectedPrefabEntry.GridSize;
@@ -1440,21 +1457,20 @@ namespace VoxelEditor.Editor
             }
 
             GUILayout.Space(5);
+            DrawGridSettings();
+            
+            GUILayout.Space(5);
 
             if (_toolMode == ToolMode.Pen)
             {
                 if (_hasHit)
                 {
-                    GUILayout.Label(Localize("設置座標", "Placement Position"));
-                    GUILayout.Label($"(X,Y,Z) = ({_gridPosition.x}, {_gridPosition.y}, {_gridPosition.z})");
+                    GUILayout.Label(Localize("設置座標", "Position") + $": ({_gridPosition.x}, {_gridPosition.y}, {_gridPosition.z})");
                 }
                 else
                 {
                     GUILayout.Label(Localize("未検出", "No Hit"));
                 }
-
-                GUILayout.Space(5);
-                DrawGridSettings();
 
                 GUILayout.Space(5);
                 DrawRotationSettings();
@@ -1466,9 +1482,6 @@ namespace VoxelEditor.Editor
                 GUILayout.Label(SelectedPrefab != null
                     ? Localize("選択中", "Selected") + ": " + SelectedPrefab.name
                     : Localize("選択中 : None", "Selected : None"));
-                
-                GUILayout.Space(5);
-                DrawPrefabGridSizeSettings();
 
                 Rect lastRect = GUILayoutUtility.GetLastRect();
 
@@ -1531,52 +1544,6 @@ namespace VoxelEditor.Editor
             _prefabScrollPosition = Vector2.zero;
             _prefabPreviews.Clear();
             _prefabListHash = 0;
-
-            SceneView.RepaintAll();
-        }
-        
-        private void DrawPrefabGridSizeSettings()
-        {
-            VoxelPrefabEntry entry = GetSelectedPrefabEntry();
-
-            if (entry == null)
-            {
-                return;
-            }
-
-            GUILayout.Space(5);
-
-            GUILayout.Label(
-                Localize("使用Gridサイズ", "Grid Size"),
-                EditorStyles.boldLabel
-            );
-
-            Vector3Int currentGridSize = entry.GridSize;
-
-            Vector3Int newGridSize = EditorGUILayout.Vector3IntField(
-                Localize("サイズ", "Size"),
-                currentGridSize
-            );
-
-            newGridSize = new Vector3Int(
-                Mathf.Max(1, newGridSize.x),
-                Mathf.Max(1, newGridSize.y),
-                Mathf.Max(1, newGridSize.z)
-            );
-
-            if (newGridSize == currentGridSize)
-            {
-                return;
-            }
-
-            Undo.RecordObject(
-                _prefabDatabase,
-                "Change Voxel Prefab Grid Size"
-            );
-
-            entry.SetGridSize(newGridSize);
-
-            EditorUtility.SetDirty(_prefabDatabase);
 
             SceneView.RepaintAll();
         }
