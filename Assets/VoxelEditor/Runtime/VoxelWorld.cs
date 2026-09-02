@@ -7,15 +7,43 @@ namespace VoxelEditor.Runtime
     {
         [Header("Grid Settings")]
         [SerializeField] private int _minimumHeight = 0;
-        [SerializeField, Min(0.01f)] private float _cellSize = 1f;
 
-        [SerializeField] private List<VoxelBlockData> _blocks = new();
+        [SerializeField, Min(0.01f)]
+        private float _cellSize = 1f;
+
+        [SerializeField]
+        private List<VoxelBlockData> _blocks = new();
+
+        private float _lastValidCellSize;
 
         public int MinimumHeight => _minimumHeight;
         public float CellSize => _cellSize;
 
         public IReadOnlyList<VoxelBlockData> Blocks => _blocks;
 
+        private void Awake()
+        {
+            _lastValidCellSize = _cellSize;
+        }
+
+        private void OnValidate()
+        {
+            _cellSize = Mathf.Max(0.1f, _cellSize);
+
+            if (_lastValidCellSize <= 0f)
+            {
+                _lastValidCellSize = _cellSize;
+            }
+
+            if (_blocks != null && _blocks.Count > 0)
+            {
+                _cellSize = _lastValidCellSize;
+                return;
+            }
+
+            _lastValidCellSize = _cellSize;
+        }
+        
         public bool IsBelowMinimumHeight(Vector3Int gridPosition)
         {
             return gridPosition.y < _minimumHeight;
@@ -74,34 +102,6 @@ namespace VoxelEditor.Runtime
                 if (block.OccupiesPosition(position))
                 {
                     return true;
-                }
-            }
-
-            return false;
-        }
-
-        public bool IsAreaOccupied(
-            Vector3Int gridPosition,
-            Vector3Int gridSize)
-        {
-            Vector3Int maxPosition =
-                gridPosition + gridSize - Vector3Int.one;
-
-            foreach (VoxelBlockData block in _blocks)
-            {
-                for (int x = gridPosition.x; x <= maxPosition.x; x++)
-                {
-                    for (int y = gridPosition.y; y <= maxPosition.y; y++)
-                    {
-                        for (int z = gridPosition.z; z <= maxPosition.z; z++)
-                        {
-                            if (block.OccupiesPosition(
-                                    new Vector3Int(x, y, z)))
-                            {
-                                return true;
-                            }
-                        }
-                    }
                 }
             }
 

@@ -8,14 +8,24 @@ namespace VoxelEditor.Runtime
     {
         [SerializeField] private GameObject _prefab;
         [SerializeField] private Vector3Int _gridSize = Vector3Int.one;
+        [SerializeField] private Vector3Int _rotation = Vector3Int.one;
 
         public GameObject Prefab => _prefab;
         public Vector3Int GridSize => _gridSize;
+        public Vector3Int Rotation => _rotation;
 
         public VoxelPrefabEntry(GameObject prefab)
         {
             _prefab = prefab;
-            _gridSize = Vector3Int.one;
+            
+            Vector3 scale = prefab.transform.localScale;
+            SetGridSize(new Vector3Int(
+                Mathf.CeilToInt(scale.x), 
+                Mathf.CeilToInt(scale.y), 
+                Mathf.CeilToInt(scale.z))
+            );
+            
+            _rotation = Vector3Int.one;
         }
 
         public void SetGridSize(Vector3Int gridSize)
@@ -25,6 +35,11 @@ namespace VoxelEditor.Runtime
                 Mathf.Max(1, gridSize.y),
                 Mathf.Max(1, gridSize.z)
             );
+        }
+        
+        public void SetRotation(Vector3Int rotation)
+        {
+            _rotation = rotation;
         }
     }
 

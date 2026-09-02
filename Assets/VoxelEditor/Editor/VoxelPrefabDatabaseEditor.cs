@@ -108,6 +108,34 @@ namespace VoxelEditor.Editor
                     EditorUtility.SetDirty(database);
                 }
 
+                Vector3Int currentRotation = entry.Rotation;
+                
+                Vector3Int newRotation = EditorGUILayout.Vector3IntField(
+                    VoxelEditorTool.Localize(
+                        "回転",
+                        "Rotation"
+                    ),
+                    currentRotation
+                );
+
+                newRotation = new Vector3Int(
+                    newRotation.x,
+                    newRotation.y,
+                    newRotation.z
+                );
+
+                if (newRotation != currentRotation)
+                {
+                    Undo.RecordObject(
+                        database,
+                        "Change Voxel Prefab Rotation"
+                    );
+
+                    entry.SetRotation(newRotation);
+
+                    EditorUtility.SetDirty(database);
+                }
+
                 EditorGUILayout.EndVertical();
 
                 EditorGUILayout.Space(5);
